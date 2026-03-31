@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from unittest.mock import AsyncMock
 
 import pytest
 
 from systemd_client.backends._subprocess import SubprocessBackend
-from systemd_client.enums import ActiveState, LoadState, SubState
+from systemd_client.enums import ActiveState, LoadState
 from systemd_client.exceptions import SubprocessError, UnitNotFoundError, UnitOperationError
 
 

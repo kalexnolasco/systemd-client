@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from systemd_client.enums import JournalPriority
 from systemd_client.exceptions import JournalParseError
@@ -35,19 +36,15 @@ def _entry_from_dict(data: dict[str, object]) -> JournalEntry:
     timestamp: datetime | None = None
     raw_ts = data.get("__REALTIME_TIMESTAMP")
     if raw_ts is not None:
-        try:
-            timestamp = datetime.fromtimestamp(int(raw_ts) / 1_000_000, tz=timezone.utc)
-        except (ValueError, OSError, TypeError):
-            pass
+        with contextlib.suppress(ValueError, OSError, TypeError):
+            timestamp = datetime.fromtimestamp(int(raw_ts) / 1_000_000, tz=UTC)
 
     # Monotonic timestamp
     monotonic: int | None = None
     raw_mono = data.get("__MONOTONIC_TIMESTAMP")
     if raw_mono is not None:
-        try:
+        with contextlib.suppress(ValueError, TypeError):
             monotonic = int(raw_mono)
-        except (ValueError, TypeError):
-            pass
 
     # Integer fields
     def _safe_int(key: str) -> int | None:

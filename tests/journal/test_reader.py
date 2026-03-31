@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
-
 import pytest
 
 from systemd_client.journal._query import JournalQuery
@@ -17,9 +15,11 @@ def reader():
 
 class TestAsyncJournalReaderQuery:
     @pytest.mark.asyncio
-    async def test_query_parses_output(self, reader, mock_subprocess_run, sample_journal_json_lines):
+    async def test_query_parses_output(
+        self, reader, mock_subprocess_run, sample_journal_json_lines,
+    ):
         stdout = "\n".join(sample_journal_json_lines)
-        mock_create, mock_proc = mock_subprocess_run(stdout=stdout)
+        _mock_create, _mock_proc = mock_subprocess_run(stdout=stdout)
 
         q = JournalQuery(unit="test-app.service", lines=10)
         entries = await reader.query(q)

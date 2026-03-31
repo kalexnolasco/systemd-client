@@ -6,7 +6,6 @@ import argparse
 import sys
 
 from systemd_client._version import __version__
-from systemd_client.client import SystemdClient
 from systemd_client.cli._formatters import (
     format_journal_json,
     format_journal_table,
@@ -15,6 +14,7 @@ from systemd_client.cli._formatters import (
     format_units_json,
     format_units_table,
 )
+from systemd_client.client import SystemdClient
 from systemd_client.enums import BackendType, JournalPriority
 from systemd_client.exceptions import SystemdClientError
 
@@ -59,7 +59,9 @@ def _build_parser() -> argparse.ArgumentParser:
     # journal
     p_journal = sub.add_parser("journal", help="Query journal entries")
     p_journal.add_argument("--unit", "-u", help="Filter by unit name")
-    p_journal.add_argument("--lines", "-n", type=int, default=25, help="Number of lines (default: 25)")
+    p_journal.add_argument(
+        "--lines", "-n", type=int, default=25, help="Number of lines (default: 25)",
+    )
     p_journal.add_argument("--since", help="Show entries since (e.g. '1h ago', '2024-01-01')")
     p_journal.add_argument("--until", help="Show entries until")
     p_journal.add_argument(
@@ -131,8 +133,8 @@ def _dispatch(client: SystemdClient, args: argparse.Namespace) -> int:
                 unit=args.unit, lines=args.lines, priority=priority,
             ):
                 if args.use_json:
-                    from dataclasses import asdict
                     import json
+                    from dataclasses import asdict
                     print(json.dumps(asdict(entry), default=str))
                 else:
                     ts = entry.timestamp.strftime("%b %d %H:%M:%S") if entry.timestamp else ""

@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
-from systemd_client.models import EnableResult, UnitInfo, UnitStatus
+if TYPE_CHECKING:
+    from systemd_client.models import EnableResult, UnitInfo, UnitStatus
 
 
 class AbstractBackend(ABC):

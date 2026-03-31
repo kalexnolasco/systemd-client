@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from systemd_client.backends._base import AbstractBackend
 from systemd_client.enums import ActiveState, LoadState, SubState, UnitFileState
@@ -92,7 +92,7 @@ class SubprocessBackend(AbstractBackend):
             raw_usec = props.get(usec_key, "")
             if raw_usec and raw_usec != "0":
                 try:
-                    return datetime.fromtimestamp(int(raw_usec) / 1_000_000, tz=timezone.utc)
+                    return datetime.fromtimestamp(int(raw_usec) / 1_000_000, tz=UTC)
                 except (ValueError, OSError):
                     pass
             # Try to parse the human-readable timestamp
@@ -134,7 +134,10 @@ class SubprocessBackend(AbstractBackend):
             load_state=_safe_enum(LoadState, "LoadState", "loaded"),  # type: ignore[arg-type]
             active_state=_safe_enum(ActiveState, "ActiveState", "inactive"),  # type: ignore[arg-type]
             sub_state=_safe_enum(SubState, "SubState", "dead"),  # type: ignore[arg-type]
-            unit_file_state=_safe_enum(UnitFileState, "UnitFileState", "disabled") if props.get("UnitFileState") else None,  # type: ignore[arg-type]
+            unit_file_state=(  # type: ignore[arg-type]
+                _safe_enum(UnitFileState, "UnitFileState", "disabled")
+                if props.get("UnitFileState") else None
+            ),
             fragment_path=props.get("FragmentPath") or None,
             active_enter_timestamp=_parse_timestamp("ActiveEnterTimestamp"),
             active_exit_timestamp=_parse_timestamp("ActiveExitTimestamp"),
@@ -199,7 +202,11 @@ class SubprocessBackend(AbstractBackend):
             # or "Removed /path"
             parts = line.split()
             if len(parts) >= 2:
-                changes.append((parts[0], parts[1] if len(parts) > 1 else "", parts[-1] if len(parts) > 2 else ""))
+                changes.append((
+                    parts[0],
+                    parts[1] if len(parts) > 1 else "",
+                    parts[-1] if len(parts) > 2 else "",
+                ))
 
         return EnableResult(changes=changes)
 

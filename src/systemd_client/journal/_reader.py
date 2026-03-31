@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Iterator
+from typing import TYPE_CHECKING
 
 from systemd_client._sync import run_sync, sync_generator_bridge
 from systemd_client.exceptions import JournalError, SubprocessError
 from systemd_client.journal._parser import parse_journal_line
 from systemd_client.journal._query import JournalQuery
-from systemd_client.models import JournalEntry
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator, Iterator
+
+    from systemd_client.models import JournalEntry
 
 
 class AsyncJournalReader:
@@ -67,7 +71,7 @@ class AsyncJournalReader:
         )
 
         try:
-            assert proc.stdout is not None  # noqa: S101
+            assert proc.stdout is not None
             async for raw_line in proc.stdout:
                 line = raw_line.decode("utf-8", errors="replace").strip()
                 if not line:

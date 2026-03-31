@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
-from systemd_client.enums import JournalPriority
+if TYPE_CHECKING:
+    from systemd_client.enums import JournalPriority
 
 
 @dataclass(frozen=True, slots=True)

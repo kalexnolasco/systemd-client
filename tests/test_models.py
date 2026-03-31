@@ -1,6 +1,6 @@
 """Tests for data models."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -34,7 +34,7 @@ class TestUnitInfo:
 
 class TestUnitStatus:
     def test_full_creation(self):
-        ts = datetime(2024, 1, 1, tzinfo=timezone.utc)
+        ts = datetime(2024, 1, 1, tzinfo=UTC)
         status = UnitStatus(
             name="test.service",
             description="Test",

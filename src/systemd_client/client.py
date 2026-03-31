@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterator
+from typing import TYPE_CHECKING
 
-from systemd_client._sync import run_sync, sync_generator_bridge
+from systemd_client._sync import run_sync
 from systemd_client.backends import AbstractBackend, get_backend
 from systemd_client.enums import BackendType, JournalPriority
 from systemd_client.journal._query import JournalQuery
 from systemd_client.journal._reader import AsyncJournalReader, JournalReader
-from systemd_client.models import EnableResult, JournalEntry, UnitInfo, UnitStatus
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncIterator, Iterator
+
+    from systemd_client.models import EnableResult, JournalEntry, UnitInfo, UnitStatus
 
 
 class AsyncSystemdClient:

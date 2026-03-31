@@ -5,8 +5,10 @@ from __future__ import annotations
 import json
 from dataclasses import asdict
 from datetime import datetime
+from typing import TYPE_CHECKING
 
-from systemd_client.models import JournalEntry, UnitInfo, UnitStatus
+if TYPE_CHECKING:
+    from systemd_client.models import JournalEntry, UnitInfo, UnitStatus
 
 
 def _serialize(obj: object) -> object:

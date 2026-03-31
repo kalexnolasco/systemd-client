@@ -6,8 +6,6 @@ Only available when pydantic is installed:
 
 from __future__ import annotations
 
-from datetime import datetime
-
 try:
     from pydantic import BaseModel, ConfigDict
 except ImportError as _exc:
@@ -16,13 +14,18 @@ except ImportError as _exc:
         "Install with: pip install systemd-client[pydantic]"
     ) from _exc
 
-from systemd_client.enums import (
-    ActiveState,
-    JournalPriority,
-    LoadState,
-    SubState,
-    UnitFileState,
-)
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from systemd_client.enums import (
+        ActiveState,
+        JournalPriority,
+        LoadState,
+        SubState,
+        UnitFileState,
+    )
 
 
 class UnitInfoModel(BaseModel):

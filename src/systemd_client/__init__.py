@@ -25,35 +25,35 @@ from systemd_client.journal import AsyncJournalReader, JournalQuery, JournalRead
 from systemd_client.models import EnableResult, JournalEntry, UnitInfo, UnitStatus
 
 __all__ = [
-    # Version
-    "__version__",
-    # Clients
-    "AsyncSystemdClient",
-    "SystemdClient",
     # Enums
     "ActiveState",
-    "BackendType",
-    "JournalPriority",
-    "LoadState",
-    "SubState",
-    "UnitFileState",
-    "UnitType",
+    # Journal
+    "AsyncJournalReader",
+    # Clients
+    "AsyncSystemdClient",
     # Exceptions
     "BackendError",
     "BackendNotAvailableError",
-    "JournalError",
-    "JournalParseError",
-    "SubprocessError",
-    "SystemdClientError",
-    "UnitNotFoundError",
-    "UnitOperationError",
+    "BackendType",
     # Models
     "EnableResult",
     "JournalEntry",
-    "UnitInfo",
-    "UnitStatus",
-    # Journal
-    "AsyncJournalReader",
+    "JournalError",
+    "JournalParseError",
+    "JournalPriority",
     "JournalQuery",
     "JournalReader",
+    "LoadState",
+    "SubState",
+    "SubprocessError",
+    "SystemdClient",
+    "SystemdClientError",
+    "UnitFileState",
+    "UnitInfo",
+    "UnitNotFoundError",
+    "UnitOperationError",
+    "UnitStatus",
+    "UnitType",
+    # Version
+    "__version__",
 ]

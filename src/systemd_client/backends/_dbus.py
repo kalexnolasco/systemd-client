@@ -113,9 +113,16 @@ class DBusBackend(AbstractBackend):
             name=native_props.get("Id", unit_name),
             description=native_props.get("Description", ""),
             load_state=_safe_enum(LoadState, native_props.get("LoadState", "loaded"), "loaded"),
-            active_state=_safe_enum(ActiveState, native_props.get("ActiveState", "inactive"), "inactive"),
-            sub_state=_safe_enum(SubState, native_props.get("SubState", "dead"), "dead"),
-            unit_file_state=_safe_enum(UnitFileState, native_props["UnitFileState"], "disabled") if native_props.get("UnitFileState") else None,
+            active_state=_safe_enum(
+                ActiveState, native_props.get("ActiveState", "inactive"), "inactive",
+            ),
+            sub_state=_safe_enum(
+                SubState, native_props.get("SubState", "dead"), "dead",
+            ),
+            unit_file_state=(
+                _safe_enum(UnitFileState, native_props["UnitFileState"], "disabled")
+                if native_props.get("UnitFileState") else None
+            ),
             fragment_path=native_props.get("FragmentPath") or None,
             main_pid=native_props.get("MainPID") or None,
             result=native_props.get("Result") or None,
@@ -144,9 +151,8 @@ class DBusBackend(AbstractBackend):
     async def _enable_op(self, method_name: str, unit_name: str) -> EnableResult:
         method = getattr(self._manager, method_name)
         try:
-            if method_name in ("MaskUnitFiles", "UnmaskUnitFiles"):
-                result = await asyncio.to_thread(method, [unit_name], False)
-            elif method_name == "DisableUnitFiles":
+            no_install = ("MaskUnitFiles", "UnmaskUnitFiles", "DisableUnitFiles")
+            if method_name in no_install:
                 result = await asyncio.to_thread(method, [unit_name], False)
             else:
                 result = await asyncio.to_thread(method, [unit_name], False, True)

@@ -16,7 +16,10 @@ def mock_client():
     """Mock SystemdClient for CLI tests."""
     client = MagicMock()
     client.list_units.return_value = [
-        UnitInfo("test.service", "Test Service", LoadState.LOADED, ActiveState.ACTIVE, SubState.RUNNING),
+        UnitInfo(
+            "test.service", "Test Service",
+            LoadState.LOADED, ActiveState.ACTIVE, SubState.RUNNING,
+        ),
     ]
     client.status.return_value = UnitStatus(
         name="test.service",

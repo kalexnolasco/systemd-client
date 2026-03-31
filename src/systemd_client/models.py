@@ -3,15 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from typing import TYPE_CHECKING
 
-from systemd_client.enums import (
-    ActiveState,
-    JournalPriority,
-    LoadState,
-    SubState,
-    UnitFileState,
-)
+if TYPE_CHECKING:
+    from datetime import datetime
+
+    from systemd_client.enums import (
+        ActiveState,
+        JournalPriority,
+        LoadState,
+        SubState,
+        UnitFileState,
+    )
 
 
 @dataclass(frozen=True, slots=True)
