@@ -35,45 +35,14 @@ print(f"PID {status.main_pid} running since {status.active_enter_timestamp}")
 
 ## Key Features
 
-<div class="grid cards" markdown>
-
--   :material-sync:{ .lg .middle } **Async + Sync**
-
-    ---
-
-    Async-first design with synchronous wrappers. Use `AsyncSystemdClient` for async code or `SystemdClient` for sync — same API, same types.
-
--   :material-cog:{ .lg .middle } **Pluggable Backends**
-
-    ---
-
-    Subprocess backend works out of the box with zero dependencies. Optional D-Bus backend via dasbus for direct communication.
-
--   :material-text-box-search:{ .lg .middle } **Journal Reader**
-
-    ---
-
-    Query and follow journal entries with structured `JournalEntry` objects. Filter by unit, priority, time range, grep patterns.
-
--   :material-wrench:{ .lg .middle } **Full Unit Management**
-
-    ---
-
-    Start, stop, restart, reload, enable, disable, mask, unmask, status. Everything `systemctl --user` can do, as typed Python methods.
-
--   :material-language-python:{ .lg .middle } **Modern Python**
-
-    ---
-
-    Python 3.11+ with StrEnum, frozen dataclasses with slots, full type annotations, PEP 561 typed package.
-
--   :material-console:{ .lg .middle } **CLI Included**
-
-    ---
-
-    `systemd-client` command with colored table output and JSON mode. Use it as a better `systemctl --user`.
-
-</div>
+| | Feature | Description |
+|:-:|---------|-------------|
+| **:material-sync:** | **Async + Sync** | Async-first design with synchronous wrappers. Use `AsyncSystemdClient` or `SystemdClient` — same API, same types. |
+| **:material-cog:** | **Pluggable Backends** | Subprocess backend (zero deps, default) or D-Bus via dasbus for direct communication. |
+| **:material-text-box-search:** | **Journal Reader** | Query and follow journal entries with structured `JournalEntry` objects. Filter by unit, priority, time range, grep. |
+| **:material-wrench:** | **Full Unit Management** | Start, stop, restart, reload, enable, disable, mask, unmask, status — everything `systemctl --user` does. |
+| **:material-language-python:** | **Modern Python** | Python 3.11+ with StrEnum, frozen dataclasses, full type annotations, PEP 561 typed. |
+| **:material-console:** | **CLI Included** | `systemd-client` command with colored table output and JSON mode. |
 
 ## Architecture
 

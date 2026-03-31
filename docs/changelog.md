@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.1.2
+
+- Add MkDocs documentation site with Material theme
+- Fix Key Features rendering on docs homepage
+- Add Documentation URL to PyPI metadata
+
 ## v0.1.1
 
 - Fix README rendering on PyPI (replace Mermaid with ASCII diagram, add dynamic badges)
