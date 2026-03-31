@@ -16,3 +16,4 @@ htmlcov/
 *.so
 .claude/
 .agents/
+site/

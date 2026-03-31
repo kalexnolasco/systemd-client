@@ -35,12 +35,17 @@ dev = [
     "ruff>=0.8",
     "pyright>=1.1",
 ]
+docs = [
+    "mkdocs-material>=9.0",
+    "mkdocstrings[python]>=0.24",
+]
 
 [project.scripts]
 systemd-client = "systemd_client.cli._app:main"
 
 [project.urls]
 Homepage = "https://github.com/kalexnolasco/systemd-client"
+Documentation = "https://kalexnolasco.github.io/systemd-client/"
 Repository = "https://github.com/kalexnolasco/systemd-client"
 Issues = "https://github.com/kalexnolasco/systemd-client/issues"
 
