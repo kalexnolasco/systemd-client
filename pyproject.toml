@@ -1,0 +1,69 @@
+[project]
+name = "systemd-client"
+version = "0.1.0"
+description = "High-level Python client for systemd user services: unit management, journal reading, sync + async"
+readme = "README.md"
+license = "LGPL-2.1-or-later"
+requires-python = ">=3.11"
+authors = [
+    { name = "kalexnolasco" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Systems Administration",
+    "Typing :: Typed",
+]
+keywords = ["systemd", "systemctl", "journalctl", "dbus", "linux", "service"]
+dependencies = []
+
+[project.optional-dependencies]
+dbus = ["dasbus>=1.7"]
+pydantic = ["pydantic>=2.0"]
+all = ["dasbus>=1.7", "pydantic>=2.0"]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.24",
+    "coverage>=7.0",
+    "ruff>=0.8",
+    "pyright>=1.1",
+]
+
+[project.scripts]
+systemd-client = "systemd_client.cli._app:main"
+
+[project.urls]
+Homepage = "https://github.com/kalexnolasco/systemd-client"
+Repository = "https://github.com/kalexnolasco/systemd-client"
+Issues = "https://github.com/kalexnolasco/systemd-client/issues"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/systemd_client"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "TCH", "RUF"]
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.11"
+typeCheckingMode = "strict"
