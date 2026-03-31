@@ -4,10 +4,11 @@
 [![Python](https://img.shields.io/pypi/pyversions/systemd-client?style=flat-square)](https://pypi.org/project/systemd-client/)
 [![License](https://img.shields.io/pypi/l/systemd-client?style=flat-square)](https://github.com/kalexnolasco/systemd-client/blob/main/LICENSE)
 [![Tests](https://img.shields.io/github/actions/workflow/status/kalexnolasco/systemd-client/tests.yml?style=flat-square&label=tests)](https://github.com/kalexnolasco/systemd-client/actions)
+[![Docs](https://img.shields.io/badge/docs-kalexnolasco.github.io-blue?style=flat-square)](https://kalexnolasco.github.io/systemd-client/)
 
 High-level Python client for systemd user services. Async-first with sync wrappers, subprocess + optional D-Bus backends, CLI included.
 
-**[English Documentation](README.en.md)** · **[Documentacion en Espanol](README.es.md)**
+> **Documentation: [kalexnolasco.github.io/systemd-client](https://kalexnolasco.github.io/systemd-client/)**
 
 ## Features
 
@@ -150,4 +151,4 @@ See the [`examples/`](https://github.com/kalexnolasco/systemd-client/tree/main/e
 
 ---
 
-**systemd-client** · [GitHub](https://github.com/kalexnolasco/systemd-client) · [PyPI](https://pypi.org/project/systemd-client/)
+**systemd-client** · [Documentation](https://kalexnolasco.github.io/systemd-client/) · [GitHub](https://github.com/kalexnolasco/systemd-client) · [PyPI](https://pypi.org/project/systemd-client/)
