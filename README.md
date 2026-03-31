@@ -1,102 +1,153 @@
-# systemd-client — High-Level Python Client for systemd User Services
+# systemd-client
 
-<div align="center">
+[![PyPI](https://img.shields.io/pypi/v/systemd-client?style=flat-square)](https://pypi.org/project/systemd-client/)
+[![Python](https://img.shields.io/pypi/pyversions/systemd-client?style=flat-square)](https://pypi.org/project/systemd-client/)
+[![License](https://img.shields.io/pypi/l/systemd-client?style=flat-square)](https://github.com/kalexnolasco/systemd-client/blob/main/LICENSE)
+[![Tests](https://img.shields.io/github/actions/workflow/status/kalexnolasco/systemd-client/tests.yml?style=flat-square&label=tests)](https://github.com/kalexnolasco/systemd-client/actions)
 
-![Module](https://img.shields.io/badge/Module-systemd--client-blue?style=for-the-badge)
-![Version](https://img.shields.io/badge/Version-0.1.0-green?style=for-the-badge)
-![Python](https://img.shields.io/badge/Python-3.11%20|%203.12%20|%203.13%20|%203.14-yellow?style=for-the-badge&logo=python)
-![License](https://img.shields.io/badge/License-LGPL--2.1-orange?style=for-the-badge)
-![systemd](https://img.shields.io/badge/systemd-user%20space-grey?style=for-the-badge&logo=linux&logoColor=white)
+High-level Python client for systemd user services. Async-first with sync wrappers, subprocess + optional D-Bus backends, CLI included.
 
-**Unified async + sync Python API for systemd unit management and journal reading**
+**[English Documentation](README.en.md)** · **[Documentacion en Espanol](README.es.md)**
 
-**API unificada async + sync en Python para gestion de unidades systemd y lectura del journal**
+## Features
 
----
+- **Async + Sync API** — `AsyncSystemdClient` and `SystemdClient` with identical interfaces
+- **Unit management** — list, status, start, stop, restart, reload, enable, disable, mask, unmask
+- **Journal reader** — query with filters (unit, priority, time range, grep) and real-time follow
+- **Pluggable backends** — subprocess (default, zero deps) or D-Bus via dasbus
+- **Typed models** — frozen dataclasses with full annotations, optional Pydantic support
+- **CLI** — `systemd-client` command with table and JSON output
+- **Modern Python** — 3.11+, StrEnum, slots, PEP 561 typed
 
-### Choose Your Language / Elige tu idioma
-
-<p align="center">
-  <a href="README.en.md">
-    <img src="https://img.shields.io/badge/English-Documentation-blue?style=for-the-badge&logo=markdown" alt="English Documentation" height="50">
-  </a>
-  &nbsp;&nbsp;&nbsp;
-  <a href="README.es.md">
-    <img src="https://img.shields.io/badge/Espa%C3%B1ol-Documentaci%C3%B3n-red?style=for-the-badge&logo=markdown" alt="Spanish Documentation" height="50">
-  </a>
-</p>
-
----
-
-### Architecture Overview
-
-```mermaid
-graph TD
-    subgraph APP["🐍 Your Application"]
-        SYNC["SystemdClient<br/>Synchronous API"]
-        ASYNC["AsyncSystemdClient<br/>Async API"]
-    end
-
-    subgraph BACKENDS["⚙️ Backends"]
-        SUB["🖥️ SubprocessBackend<br/>systemctl --user"]
-        DBUS["🔌 DBusBackend<br/>dasbus (optional)"]
-    end
-
-    subgraph JOURNAL["📋 Journal Reader"]
-        JR["AsyncJournalReader<br/>journalctl --user --output=json"]
-    end
-
-    subgraph SYSTEMD["🐧 systemd (user session)"]
-        UNITS[("🔧 User Units<br/>services, timers, sockets")]
-        JRNL[("📜 Journal<br/>log entries")]
-    end
-
-    SYNC --> ASYNC
-    ASYNC --> SUB
-    ASYNC --> DBUS
-    ASYNC --> JR
-    SUB --> UNITS
-    DBUS --> UNITS
-    JR --> JRNL
-
-    style APP fill:#d0ebff,stroke:#1971c2,stroke-width:2px
-    style BACKENDS fill:#b2f2bb,stroke:#2f9e44,stroke-width:2px
-    style JOURNAL fill:#f3d9fa,stroke:#9c36b5,stroke-width:2px
-    style SYSTEMD fill:#fff3bf,stroke:#f08c00,stroke-width:2px
-    style SYNC fill:#d0ebff,stroke:#1971c2,stroke-width:2px
-    style ASYNC fill:#d0ebff,stroke:#1971c2,stroke-width:2px
-    style SUB fill:#b2f2bb,stroke:#2f9e44,stroke-width:2px
-    style DBUS fill:#b2f2bb,stroke:#2f9e44,stroke-width:2px
-    style JR fill:#f3d9fa,stroke:#9c36b5,stroke-width:2px
-    style UNITS fill:#fff3bf,stroke:#f08c00
-    style JRNL fill:#fff3bf,stroke:#f08c00
-```
-
-### Quick Start
+## Install
 
 ```bash
-# Install
 pip install systemd-client
-
-# Install with DBus backend support
-pip install systemd-client[dbus]
-
-# Install with Pydantic models
-pip install systemd-client[all]
 ```
+
+Optional extras:
+
+```bash
+pip install systemd-client[dbus]      # D-Bus backend via dasbus
+pip install systemd-client[pydantic]  # Pydantic model variants
+pip install systemd-client[all]       # Everything
+```
+
+## Quick Start
+
+### Sync
 
 ```python
 from systemd_client import SystemdClient
 
 client = SystemdClient()
+
+# List services
 for unit in client.list_units(unit_type="service"):
-    print(f"{unit.name}: {unit.active_state}")
+    print(f"{unit.name}: {unit.active_state} ({unit.sub_state})")
+
+# Manage units
+client.restart("my-app.service")
+status = client.status("my-app.service")
+print(f"PID: {status.main_pid}, State: {status.active_state}")
+
+# Journal
+entries = client.journal("my-app.service", lines=50, since="1h ago")
+for entry in entries:
+    print(f"[{entry.priority}] {entry.message}")
+
+# Follow journal in real-time
+for entry in client.journal_follow("my-app.service"):
+    print(entry.message)
 ```
+
+### Async
+
+```python
+import asyncio
+from systemd_client import AsyncSystemdClient
+
+async def main():
+    client = AsyncSystemdClient()
+    units = await client.list_units(unit_type="service")
+    await client.restart("my-app.service")
+
+    async for entry in client.journal_follow("my-app.service"):
+        print(entry.message)
+
+asyncio.run(main())
+```
+
+## CLI
+
+```bash
+systemd-client list                                     # List all units
+systemd-client list --type service                      # List services only
+systemd-client status my-app.service                    # Unit status
+systemd-client restart my-app.service                   # Restart
+systemd-client journal -u my-app.service -n 50          # Last 50 log lines
+systemd-client journal -u my-app.service --follow       # Follow logs
+systemd-client --json list                              # JSON output
+```
+
+## Architecture
+
+```
+Your Application
+    |
+    +-- SystemdClient (sync)
+    |       |
+    +-- AsyncSystemdClient (async)
+            |
+            +-- SubprocessBackend ---- systemctl --user ----> systemd
+            |     (default)
+            +-- DBusBackend ---------- D-Bus session bus ---> systemd
+            |     (optional, dasbus)
+            +-- AsyncJournalReader --- journalctl --user ---> journal
+```
+
+## API Reference
+
+| Method | Return | Description |
+|--------|--------|-------------|
+| `list_units(unit_type?, state?)` | `list[UnitInfo]` | List user units |
+| `status(unit)` | `UnitStatus` | Detailed status |
+| `start(unit)` | `None` | Start unit |
+| `stop(unit)` | `None` | Stop unit |
+| `restart(unit)` | `None` | Restart unit |
+| `reload(unit)` | `None` | Reload unit |
+| `enable(unit)` | `EnableResult` | Enable unit |
+| `disable(unit)` | `EnableResult` | Disable unit |
+| `mask(unit)` / `unmask(unit)` | `EnableResult` | Mask/unmask |
+| `is_active(unit)` | `bool` | Check active |
+| `is_enabled(unit)` | `bool` | Check enabled |
+| `is_failed(unit)` | `bool` | Check failed |
+| `daemon_reload()` | `None` | Reload daemon |
+| `journal(unit?, lines?, since?, until?, priority?, grep?)` | `list[JournalEntry]` | Query journal |
+| `journal_follow(unit?, lines?, priority?)` | `Iterator[JournalEntry]` | Follow journal |
+
+## Examples
+
+See the [`examples/`](https://github.com/kalexnolasco/systemd-client/tree/main/examples) directory for 15 ready-to-use scripts covering:
+
+- Listing and monitoring services
+- Start/stop/restart/enable operations
+- Journal queries and real-time follow
+- Health checks and failed unit reports
+- Async concurrent operations
+- Deploy workflows
+- Batch operations
+
+## Requirements
+
+- Python >= 3.11
+- Linux with systemd
+- `systemctl` and `journalctl` on PATH
+
+## License
+
+[LGPL-2.1-or-later](LICENSE)
 
 ---
 
-**systemd-client** · [github.com/kalexnolasco/systemd-client](https://github.com/kalexnolasco/systemd-client)
-
-&copy; 2026 kalexnolasco
-
-</div>
+**systemd-client** · [GitHub](https://github.com/kalexnolasco/systemd-client) · [PyPI](https://pypi.org/project/systemd-client/)

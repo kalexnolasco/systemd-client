@@ -1,6 +1,6 @@
 [project]
 name = "systemd-client"
-version = "0.1.0"
+version = "0.1.1"
 description = "High-level Python client for systemd user services: unit management, journal reading, sync + async"
 readme = "README.md"
 license = "LGPL-2.1-or-later"
