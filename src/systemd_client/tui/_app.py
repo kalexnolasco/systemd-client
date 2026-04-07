@@ -31,7 +31,6 @@ try:
     from ratatui_py import (
         App,
         Color,
-        DrawCmd,
         Gauge,
         KeyCode,
         Paragraph,
@@ -41,7 +40,7 @@ try:
         Tabs,
         Terminal,
     )
-    pass
+    from ratatui_py.wrappers import TableState
 except ImportError as _exc:
     raise ImportError(
         "ratatui-py is required for the TUI. "
@@ -288,7 +287,11 @@ def _build_stats_gauge(state: dict[str, Any]) -> Gauge:
     ratio = active / total
 
     g = Gauge().ratio(ratio).label(f"Active: {active}/{total} ({ratio*100:.0f}%)")
-    g.set_styles(Style(fg=THEME["text"]), Style(fg=THEME["text"]), Style(fg=THEME["active"]))
+    g.set_styles(
+        Style(fg=THEME["text"]),    # block style
+        Style(fg=THEME["text"]),    # label style
+        Style(fg=THEME["active"], bg=THEME["muted"]),  # gauge bar style
+    )
     g.set_block_title(" Health ", True)
     return g
 
@@ -385,59 +388,64 @@ def _build_timers_tab(state: dict[str, Any]) -> Table:
 
 
 def render(term: Terminal, state: dict[str, Any]) -> None:
-    """Main render function."""
+    """Main render function.
+
+    Uses individual draw calls instead of draw_frame so we can use
+    draw_table_state for proper row highlight/selection.
+    """
     w, h = term.size()
 
     # Layout: header(1) + tabs(1) + body + footer(1)
-    header_h = max(1, int(h * 0.04))
-    tabs_h = max(1, int(h * 0.04))
-    footer_h = max(1, int(h * 0.04))
+    header_h = 1
+    tabs_h = 1
+    footer_h = 1
+    body_y = header_h + tabs_h
     body_h = h - header_h - tabs_h - footer_h
 
-    header_rect = Rect(0, 0, w, header_h)
-    tabs_rect = Rect(0, header_h, w, tabs_h)
-    body_rect = Rect(0, header_h + tabs_h, w, body_h)
-    footer_rect = Rect(0, h - footer_h, w, footer_h)
-
-    cmds: list[DrawCmd] = []
-
-    # Header + Tabs + Footer (always shown)
-    cmds.append(DrawCmd.paragraph(_build_header(state), header_rect))
-    cmds.append(DrawCmd.tabs(_build_tabs(state), tabs_rect))
-    cmds.append(DrawCmd.paragraph(_build_help_footer(state), footer_rect))
+    # Draw chrome (header, tabs, footer)
+    term.draw_paragraph(_build_header(state), Rect(0, 0, w, header_h))
+    term.draw_tabs(_build_tabs(state), Rect(0, header_h, w, tabs_h))
+    term.draw_paragraph(_build_help_footer(state), Rect(0, h - footer_h, w, footer_h))
 
     tab = state.get("tab", 0)
 
     if tab == 0:  # Dashboard
-        # Left (60%): unit table | Right (40%): detail + actions + gauge
         left_w = int(w * 0.6)
         right_w = w - left_w
-        left_rect = Rect(0, body_rect.y, left_w, body_h)
-        right_rect = Rect(left_w, body_rect.y, right_w, body_h)
+        left_rect = Rect(0, body_y, left_w, body_h)
 
-        # Right: detail (35%) + actions (35%) + gauge (30%)
-        detail_h = int(body_h * 0.35)
-        actions_h = int(body_h * 0.35)
-        gauge_h = body_h - detail_h - actions_h
-        detail_rect = Rect(right_rect.x, right_rect.y, right_w, detail_h)
-        actions_rect = Rect(right_rect.x, right_rect.y + detail_h, right_w, actions_h)
-        gauge_rect = Rect(right_rect.x, right_rect.y + detail_h + actions_h, right_w, gauge_h)
+        # Draw table with TableState for proper highlight
+        tbl = _build_unit_table(state)
+        ts = TableState()
+        ts.set_selected(state.get("selected", 0))
+        term.draw_table_state(tbl, ts, left_rect)
 
-        cmds.append(DrawCmd.table(_build_unit_table(state), left_rect))
-        cmds.append(DrawCmd.paragraph(_build_detail(state), detail_rect))
-        cmds.append(DrawCmd.paragraph(_build_actions(state), actions_rect))
-        cmds.append(DrawCmd.gauge(_build_stats_gauge(state), gauge_rect))
+        # Right panels
+        detail_h = int(body_h * 0.4)
+        actions_h = int(body_h * 0.4)
+        gauge_h = max(3, body_h - detail_h - actions_h)
+        actions_h = body_h - detail_h - gauge_h  # recalc
+
+        term.draw_paragraph(
+            _build_detail(state), Rect(left_w, body_y, right_w, detail_h),
+        )
+        term.draw_paragraph(
+            _build_actions(state), Rect(left_w, body_y + detail_h, right_w, actions_h),
+        )
+        term.draw_gauge(
+            _build_stats_gauge(state),
+            Rect(left_w, body_y + detail_h + actions_h, right_w, gauge_h),
+        )
 
     elif tab == 1:  # Journal
-        cmds.append(DrawCmd.paragraph(_build_journal(state), body_rect))
+        term.draw_paragraph(_build_journal(state), Rect(0, body_y, w, body_h))
 
     elif tab == 2:  # Timers
-        cmds.append(DrawCmd.table(_build_timers_tab(state), body_rect))
+        tbl = _build_timers_tab(state)
+        term.draw_table(tbl, Rect(0, body_y, w, body_h))
 
     elif tab == 3:  # Help
-        cmds.append(DrawCmd.paragraph(_build_help_screen(), body_rect))
-
-    term.draw_frame(cmds)
+        term.draw_paragraph(_build_help_screen(), Rect(0, body_y, w, body_h))
 
 
 # ── Event Handling ──────────────────────────────────────────────
@@ -534,8 +542,8 @@ def on_event(term: Terminal, evt: dict[str, Any], state: dict[str, Any]) -> bool
     elif code == KeyCode.End:
         state["selected"] = max(0, len(units) - 1)
 
-    # Unit operations
-    elif char and units and state.get("tab", 0) == 0:
+    # Unit operations (work from dashboard tab)
+    elif char and units and state.get("tab", 0) in (0, 1):
         idx = min(state.get("selected", 0), len(units) - 1)
         unit_name = units[idx].name
 
