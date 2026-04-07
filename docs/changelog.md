@@ -1,5 +1,59 @@
 # Changelog
 
+## v0.9.0
+
+**Interactive TUI** powered by [Ratatui](https://ratatui.rs/) (Rust rendering engine).
+
+- `systemd-client tui` — launch interactive dashboard
+- Real-time unit list with color-coded states
+- Keyboard-driven operations (start/stop/restart/enable/disable)
+- Journal viewer per unit
+- Scope toggle (user/system)
+- Auto-refresh every 2 seconds
+- Optional dependency: `pip install systemd-client[tui]`
+
+## v0.8.0
+
+**Environment + Session Management** — complete systemd control.
+
+- `show_environment()` / `set_environment()` / `unset_environment()`
+- `list_sessions()` / `list_users()` / `terminate_session()` / `lock_session()`
+- New models: `SessionInfo`, `UserInfo`
+- CLI: show-environment, set-environment, unset-environment, list-sessions, list-users
+
+## v0.7.0
+
+**sd_notify + Power Management**
+
+- `SystemdNotifier`: pure Python sd_notify implementation (READY, STATUS, WATCHDOG, etc.)
+- `poweroff()`, `reboot()`, `suspend()`, `hibernate()`
+- CLI: poweroff, reboot, suspend, hibernate
+
+## v0.6.0
+
+**systemd-analyze** — boot analysis and security scoring.
+
+- `analyze_blame()` / `analyze_security()` / `analyze_verify()` / `analyze_critical_chain()`
+- New models: `BlameEntry`, `SecurityAnalysis`, `SecurityIssue`
+- CLI: analyze-blame, analyze-security, analyze-verify
+
+## v0.5.0
+
+**Resource Control + Monitoring**
+
+- `set_property()` / `get_resource_usage()` / `list_timers()` / `list_sockets()`
+- `list_dependencies()` / `kill()`
+- New models: `ResourceUsage`, `TimerInfo`, `SocketInfo`
+- CLI: resources, list-timers, list-sockets, list-dependencies, kill
+
+## v0.4.0
+
+**Transient Units** — systemd-run from Python.
+
+- `run()` / `run_on_calendar()` for one-off and scheduled commands
+- New model: `TransientResult`
+- CLI: run CMD [--wait] [--on-calendar] [--property K=V]
+
 ## v0.3.0
 
 **Unit File Builder** — Create systemd unit files programmatically from Python.

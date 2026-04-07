@@ -1,6 +1,6 @@
 [project]
 name = "systemd-client"
-version = "0.8.0"
+version = "0.9.0"
 description = "High-level Python client for systemd user services: unit management, journal reading, sync + async"
 readme = "README.md"
 license = "LGPL-2.1-or-later"
@@ -27,7 +27,8 @@ dependencies = []
 [project.optional-dependencies]
 dbus = ["dasbus>=1.7"]
 pydantic = ["pydantic>=2.0"]
-all = ["dasbus>=1.7", "pydantic>=2.0"]
+tui = ["ratatui-py>=0.4"]
+all = ["dasbus>=1.7", "pydantic>=2.0", "ratatui-py>=0.4"]
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",

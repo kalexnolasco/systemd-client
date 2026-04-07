@@ -77,6 +77,9 @@ def _build_parser() -> argparse.ArgumentParser:
     p_reset = sub.add_parser("reset-failed", help="Reset failed state")
     p_reset.add_argument("unit", nargs="?", help="Unit name (all if omitted)")
 
+    # tui
+    sub.add_parser("tui", help="Launch interactive TUI dashboard")
+
     # environment
     sub.add_parser("show-environment", help="Show manager environment variables")
     p_setenv = sub.add_parser("set-environment", help="Set environment variables")
@@ -275,6 +278,13 @@ def _dispatch(client: SystemdClient, args: argparse.Namespace) -> int:
             print(f"Reset failed state for {args.unit}")
         else:
             print("Reset all failed states")
+
+    elif cmd == "tui":
+        from systemd_client.tui._app import run_tui
+        return run_tui(
+            backend=BackendType(args.backend),
+            scope=SystemdScope(args.scope),
+        )
 
     elif cmd == "show-environment":
         env = client.show_environment()
