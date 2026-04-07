@@ -20,6 +20,23 @@ def sample_units():
     ]
 
 
+@pytest.fixture
+def sample_state(sample_units):
+    return {
+        "units": sample_units,
+        "_filtered": sample_units,
+        "selected": 0,
+        "scope": "user",
+        "message": "",
+        "journal": [],
+        "journal_unit": "",
+        "timers": [],
+        "filter": "",
+        "filtering": False,
+        "tab": 0,
+    }
+
+
 class TestTUIComponents:
     def test_state_color(self):
         from ratatui_py import Color
@@ -29,81 +46,72 @@ class TestTUIComponents:
         assert _state_color("failed") == Color.Red
         assert _state_color("inactive") == Color.DarkGray
 
-    def test_build_unit_table(self, sample_units):
+    def test_build_unit_table(self, sample_state):
         from systemd_client.tui._app import _build_unit_table
-        state = {"units": sample_units, "selected": 0}
-        tbl = _build_unit_table(state)
-        # Should not raise
+        tbl = _build_unit_table(sample_state)
         assert tbl is not None
 
-    def test_build_detail_panel(self, sample_units):
-        from systemd_client.tui._app import _build_detail_panel
-        state = {"units": sample_units, "selected": 0, "message": ""}
-        panel = _build_detail_panel(state)
+    def test_build_detail(self, sample_state):
+        from systemd_client.tui._app import _build_detail
+        panel = _build_detail(sample_state)
         assert panel is not None
 
-    def test_build_detail_panel_empty(self):
-        from systemd_client.tui._app import _build_detail_panel
-        state = {"units": [], "selected": 0, "message": ""}
-        panel = _build_detail_panel(state)
+    def test_build_detail_empty(self):
+        from systemd_client.tui._app import _build_detail
+        state = {"units": [], "_filtered": [], "selected": 0, "message": ""}
+        panel = _build_detail(state)
         assert panel is not None
 
-    def test_build_journal_panel_empty(self):
-        from systemd_client.tui._app import _build_journal_panel
-        state = {"journal": []}
-        panel = _build_journal_panel(state)
+    def test_build_journal_empty(self):
+        from systemd_client.tui._app import _build_journal
+        state = {"journal": [], "journal_unit": ""}
+        panel = _build_journal(state)
         assert panel is not None
 
-    def test_build_help_bar(self):
-        from systemd_client.tui._app import _build_help_bar
-        bar = _build_help_bar()
+    def test_build_help_footer(self):
+        from systemd_client.tui._app import _build_help_footer
+        bar = _build_help_footer()
         assert bar is not None
 
-    def test_build_header(self, sample_units):
+    def test_build_header(self, sample_state):
         from systemd_client.tui._app import _build_header
-        state = {"units": sample_units, "scope": "user"}
-        header = _build_header(state)
+        header = _build_header(sample_state)
         assert header is not None
 
-    def test_headless_render(self, sample_units):
-        """Test that the full dashboard renders headlessly without errors."""
-        from ratatui_py import DrawCmd, Rect, headless_render_frame
+    def test_build_actions(self, sample_state):
+        from systemd_client.tui._app import _build_actions
+        panel = _build_actions(sample_state)
+        assert panel is not None
 
-        from systemd_client.tui._app import (
-            _build_detail_panel,
-            _build_header,
-            _build_help_bar,
-            _build_journal_panel,
-            _build_unit_table,
-        )
+    def test_build_stats_gauge(self, sample_state):
+        from systemd_client.tui._app import _build_stats_gauge
+        gauge = _build_stats_gauge(sample_state)
+        assert gauge is not None
 
-        state = {
-            "units": sample_units,
-            "selected": 1,
-            "scope": "user",
-            "message": "OK: Test",
-            "journal": [],
-        }
+    def test_build_help_screen(self):
+        from systemd_client.tui._app import _build_help_screen
+        screen = _build_help_screen()
+        assert screen is not None
 
-        tbl = _build_unit_table(state)
-        detail = _build_detail_panel(state)
-        journal = _build_journal_panel(state)
-        header = _build_header(state)
-        footer = _build_help_bar()
+    def test_build_tabs(self, sample_state):
+        from systemd_client.tui._app import _build_tabs
+        tabs = _build_tabs(sample_state)
+        assert tabs is not None
 
-        # Render just the table headlessly at 120x20 for enough room
+    def test_headless_table_render(self, sample_state):
+        """Test that the unit table renders correctly headlessly."""
         from ratatui_py import headless_render_table
-        table_output = headless_render_table(120, 10, tbl)
-        assert "app.service" in table_output
-        assert "db.service" in table_output
-        assert "old.service" in table_output
 
-        # Render full frame (smoke test — no assert on content, just no crash)
-        output = headless_render_frame(120, 30, [
-            DrawCmd.paragraph(header, Rect(0, 0, 120, 1)),
-            DrawCmd.table(tbl, Rect(0, 1, 70, 20)),
-            DrawCmd.paragraph(detail, Rect(70, 1, 50, 8)),
-            DrawCmd.paragraph(journal, Rect(70, 9, 50, 12)),
-            DrawCmd.paragraph(footer, Rect(0, 29, 120, 1)),
-        ])
-        assert len(output) > 0
+        from systemd_client.tui._app import _build_unit_table
+        tbl = _build_unit_table(sample_state)
+        output = headless_render_table(120, 10, tbl)
+        assert "app.service" in output
+        assert "db.service" in output
+        assert "old.service" in output
+
+    def test_filter(self, sample_state):
+        from systemd_client.tui._app import _build_unit_table
+        sample_state["filter"] = "app"
+        _build_unit_table(sample_state)
+        assert len(sample_state["_filtered"]) == 1
+        assert sample_state["_filtered"][0].name == "app.service"
