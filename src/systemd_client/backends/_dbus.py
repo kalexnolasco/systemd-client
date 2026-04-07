@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import shutil
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from systemd_client._unit_escape import unit_dbus_object_path
 from systemd_client.backends._base import AbstractBackend
+from systemd_client.backends._paths import unit_file_dir
 from systemd_client.enums import (
     ActiveState,
     LoadState,
@@ -15,8 +17,15 @@ from systemd_client.enums import (
     SystemdScope,
     UnitFileState,
 )
-from systemd_client.exceptions import UnitNotFoundError, UnitOperationError
+from systemd_client.exceptions import (
+    UnitFileInstallError,
+    UnitNotFoundError,
+    UnitOperationError,
+)
 from systemd_client.models import EnableResult, UnitFileInfo, UnitInfo, UnitStatus
+
+if TYPE_CHECKING:
+    from systemd_client.models import UnitFile
 
 try:
     from dasbus.connection import SessionMessageBus, SystemMessageBus
@@ -331,6 +340,74 @@ class DBusBackend(AbstractBackend):
             return state == "failed"
         except Exception:
             return False
+
+    # ── Unit file install / uninstall / edit ────────────────────
+
+    async def install_unit_file(self, unit_file: UnitFile) -> str:
+        target_dir = unit_file_dir(self._scope)
+
+        def _write() -> str:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            path = target_dir / unit_file.name
+            path.write_text(unit_file.content, encoding="utf-8")
+            return str(path)
+
+        try:
+            written = await asyncio.to_thread(_write)
+        except OSError as exc:
+            raise UnitFileInstallError(unit_file.name, "install", str(exc)) from exc
+
+        await self.daemon_reload()
+        return written
+
+    async def uninstall_unit_file(self, unit_name: str) -> None:
+        target_dir = unit_file_dir(self._scope)
+        unit_path = target_dir / unit_name
+        dropin_dir = target_dir / f"{unit_name}.d"
+
+        def _remove() -> None:
+            if not unit_path.exists():
+                raise FileNotFoundError(unit_name)
+            unit_path.unlink()
+            if dropin_dir.is_dir():
+                shutil.rmtree(dropin_dir)
+
+        try:
+            await asyncio.to_thread(_remove)
+        except FileNotFoundError as exc:
+            raise UnitNotFoundError(unit_name) from exc
+        except OSError as exc:
+            raise UnitFileInstallError(unit_name, "uninstall", str(exc)) from exc
+
+        await self.daemon_reload()
+
+    async def edit_unit_file(
+        self,
+        unit_name: str,
+        overrides: dict[str, dict[str, str]],
+    ) -> str:
+        target_dir = unit_file_dir(self._scope)
+        dropin_dir = target_dir / f"{unit_name}.d"
+
+        def _write_override() -> str:
+            dropin_dir.mkdir(parents=True, exist_ok=True)
+            override_path = dropin_dir / "override.conf"
+            lines: list[str] = []
+            for section, kvs in overrides.items():
+                lines.append(f"[{section}]")
+                for key, value in kvs.items():
+                    lines.append(f"{key}={value}")
+                lines.append("")
+            override_path.write_text("\n".join(lines), encoding="utf-8")
+            return str(override_path)
+
+        try:
+            written = await asyncio.to_thread(_write_override)
+        except OSError as exc:
+            raise UnitFileInstallError(unit_name, "edit", str(exc)) from exc
+
+        await self.daemon_reload()
+        return written
 
     async def close(self) -> None:
         self._bus.disconnect()

@@ -1,5 +1,41 @@
 # Changelog
 
+## v0.3.0
+
+**Unit File Builder** — Create systemd unit files programmatically from Python.
+
+### New Features
+
+- **`ServiceBuilder`** — Fluent builder for `.service` unit files with full directive support
+- **`TimerBuilder`** — Builder for `.timer` units (OnCalendar, OnBootSec, Persistent)
+- **`SocketBuilder`** — Builder for `.socket` units (ListenStream, ListenDatagram, Accept)
+- **`PathBuilder`** — Builder for `.path` units (PathChanged, PathModified, DirectoryNotEmpty)
+- **`client.install(unit_file)`** — Write unit files to the correct directory based on scope
+- **`client.uninstall(unit_name)`** — Remove installed unit files and drop-in directories
+- **`client.edit(unit_name, overrides)`** — Create drop-in override files
+- **`UnitFile` model** — Frozen dataclass for generated unit files (name, content, unit_type)
+- **`ServiceType` enum** — simple, forking, oneshot, notify, exec, dbus, idle
+- **`RestartPolicy` enum** — no, on-success, on-failure, on-abnormal, on-watchdog, on-abort, always
+- **Template support** — Create template units with `@` syntax (`ServiceBuilder("app", template=True)`)
+- **Validation** — Builders validate required fields before building (ExecStart, time triggers, etc.)
+
+### CLI
+
+- `create-service` — Generate `.service` files from flags, optionally install
+- `create-timer` — Generate `.timer` files from flags, optionally install
+- `install UNIT --from-file PATH` — Install a unit file from disk
+- `uninstall UNIT` — Remove an installed unit file
+
+### New Exceptions
+
+- `UnitFileValidationError` — Raised when builder validation fails
+- `UnitFileInstallError` — Raised when install/uninstall operations fail
+
+### Stats
+
+- **199 tests** (up from 149), all passing
+- Zero new dependencies
+
 ## v0.2.0
 
 Major feature release: system scope, new operations, context managers, and bug fixes.

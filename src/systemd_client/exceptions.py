@@ -50,6 +50,26 @@ class SubprocessError(BackendError):
         )
 
 
+class UnitFileValidationError(SystemdClientError):
+    """Raised when a unit file builder fails validation."""
+
+    def __init__(self, builder_name: str, errors: list[str]) -> None:
+        self.builder_name = builder_name
+        self.errors = errors
+        formatted = "; ".join(errors)
+        super().__init__(f"Validation failed for '{builder_name}': {formatted}")
+
+
+class UnitFileInstallError(SystemdClientError):
+    """Raised when installing/uninstalling a unit file fails."""
+
+    def __init__(self, unit_name: str, operation: str, detail: str) -> None:
+        self.unit_name = unit_name
+        self.operation = operation
+        self.detail = detail
+        super().__init__(f"Failed to {operation} unit file '{unit_name}': {detail}")
+
+
 class JournalError(SystemdClientError):
     """Base exception for journal-related errors."""
 

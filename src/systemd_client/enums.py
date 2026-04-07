@@ -104,6 +104,30 @@ class JournalPriority(StrEnum):
     DEBUG = "7"
 
 
+class ServiceType(StrEnum):
+    """Systemd service types (Type= directive)."""
+
+    SIMPLE = "simple"
+    FORKING = "forking"
+    ONESHOT = "oneshot"
+    NOTIFY = "notify"
+    EXEC = "exec"
+    DBUS = "dbus"
+    IDLE = "idle"
+
+
+class RestartPolicy(StrEnum):
+    """Systemd service restart policies (Restart= directive)."""
+
+    NO = "no"
+    ON_SUCCESS = "on-success"
+    ON_FAILURE = "on-failure"
+    ON_ABNORMAL = "on-abnormal"
+    ON_WATCHDOG = "on-watchdog"
+    ON_ABORT = "on-abort"
+    ALWAYS = "always"
+
+
 class SystemdScope(StrEnum):
     """Systemd scope: user session or system-wide."""
 

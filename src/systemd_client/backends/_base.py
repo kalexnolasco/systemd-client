@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from systemd_client.models import EnableResult, UnitFileInfo, UnitInfo, UnitStatus
+    from systemd_client.models import EnableResult, UnitFile, UnitFileInfo, UnitInfo, UnitStatus
 
 
 class AbstractBackend(ABC):
@@ -113,6 +113,25 @@ class AbstractBackend(ABC):
 
     @abstractmethod
     async def is_failed(self, unit_name: str) -> bool:
+        ...
+
+    @abstractmethod
+    async def install_unit_file(self, unit_file: UnitFile) -> str:
+        """Write a unit file to the appropriate directory. Returns the written path."""
+        ...
+
+    @abstractmethod
+    async def uninstall_unit_file(self, unit_name: str) -> None:
+        """Remove a unit file and daemon-reload."""
+        ...
+
+    @abstractmethod
+    async def edit_unit_file(
+        self,
+        unit_name: str,
+        overrides: dict[str, dict[str, str]],
+    ) -> str:
+        """Create a drop-in override file. Returns the written path."""
         ...
 
     async def close(self) -> None:  # noqa: B027

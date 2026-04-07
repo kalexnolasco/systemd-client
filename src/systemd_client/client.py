@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from systemd_client.models import (
         EnableResult,
         JournalEntry,
+        UnitFile,
         UnitFileInfo,
         UnitInfo,
         UnitStatus,
@@ -152,6 +153,18 @@ class AsyncSystemdClient:
     async def reset_failed(self, unit_name: str | None = None) -> None:
         """Reset the failed state of a unit, or all units if no name given."""
         await self._backend.reset_failed(unit_name)
+
+    async def install(self, unit_file: UnitFile) -> str:
+        """Install a unit file. Returns the path where it was written."""
+        return await self._backend.install_unit_file(unit_file)
+
+    async def uninstall(self, unit_name: str) -> None:
+        """Remove an installed unit file and daemon-reload."""
+        await self._backend.uninstall_unit_file(unit_name)
+
+    async def edit(self, unit_name: str, overrides: dict[str, dict[str, str]]) -> str:
+        """Create a drop-in override for a unit. Returns the override path."""
+        return await self._backend.edit_unit_file(unit_name, overrides)
 
     async def journal(
         self,
@@ -305,6 +318,18 @@ class SystemdClient:
     def reset_failed(self, unit_name: str | None = None) -> None:
         """Reset the failed state of a unit, or all units if no name given."""
         run_sync(self._async_client.reset_failed(unit_name))
+
+    def install(self, unit_file: UnitFile) -> str:
+        """Install a unit file. Returns the path where it was written."""
+        return run_sync(self._async_client.install(unit_file))
+
+    def uninstall(self, unit_name: str) -> None:
+        """Remove an installed unit file and daemon-reload."""
+        run_sync(self._async_client.uninstall(unit_name))
+
+    def edit(self, unit_name: str, overrides: dict[str, dict[str, str]]) -> str:
+        """Create a drop-in override for a unit. Returns the override path."""
+        return run_sync(self._async_client.edit(unit_name, overrides))
 
     def journal(
         self,

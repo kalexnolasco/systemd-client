@@ -1,12 +1,15 @@
 """systemd-client: High-level Python client for systemd user and system services."""
 
 from systemd_client._version import __version__
+from systemd_client.builders import PathBuilder, ServiceBuilder, SocketBuilder, TimerBuilder
 from systemd_client.client import AsyncSystemdClient, SystemdClient
 from systemd_client.enums import (
     ActiveState,
     BackendType,
     JournalPriority,
     LoadState,
+    RestartPolicy,
+    ServiceType,
     SubState,
     SystemdScope,
     UnitFileState,
@@ -19,11 +22,20 @@ from systemd_client.exceptions import (
     JournalParseError,
     SubprocessError,
     SystemdClientError,
+    UnitFileInstallError,
+    UnitFileValidationError,
     UnitNotFoundError,
     UnitOperationError,
 )
 from systemd_client.journal import AsyncJournalReader, JournalQuery, JournalReader
-from systemd_client.models import EnableResult, JournalEntry, UnitFileInfo, UnitInfo, UnitStatus
+from systemd_client.models import (
+    EnableResult,
+    JournalEntry,
+    UnitFile,
+    UnitFileInfo,
+    UnitInfo,
+    UnitStatus,
+)
 
 __all__ = [
     "ActiveState",
@@ -40,13 +52,22 @@ __all__ = [
     "JournalQuery",
     "JournalReader",
     "LoadState",
+    "PathBuilder",
+    "RestartPolicy",
+    "ServiceBuilder",
+    "ServiceType",
+    "SocketBuilder",
     "SubState",
     "SubprocessError",
     "SystemdClient",
     "SystemdClientError",
     "SystemdScope",
+    "TimerBuilder",
+    "UnitFile",
     "UnitFileInfo",
+    "UnitFileInstallError",
     "UnitFileState",
+    "UnitFileValidationError",
     "UnitInfo",
     "UnitNotFoundError",
     "UnitOperationError",

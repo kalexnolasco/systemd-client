@@ -76,6 +76,47 @@ def _build_parser() -> argparse.ArgumentParser:
     p_reset = sub.add_parser("reset-failed", help="Reset failed state")
     p_reset.add_argument("unit", nargs="?", help="Unit name (all if omitted)")
 
+    # create-service
+    p_cs = sub.add_parser("create-service", help="Generate a .service unit file")
+    p_cs.add_argument("--name", required=True, help="Service name (without .service)")
+    p_cs.add_argument("--exec-start", required=True, help="ExecStart command")
+    p_cs.add_argument("--description", help="Unit description")
+    p_cs.add_argument("--type", dest="svc_type", default="simple", help="Service type")
+    p_cs.add_argument("--user", help="Run as user")
+    p_cs.add_argument("--group", help="Run as group")
+    p_cs.add_argument("--working-directory", help="Working directory")
+    p_cs.add_argument("--restart", default=None, help="Restart policy")
+    p_cs.add_argument("--restart-sec", type=int, help="Restart delay in seconds")
+    p_cs.add_argument("--after", nargs="*", help="After= dependencies")
+    p_cs.add_argument("--wanted-by", default="default.target", help="Install WantedBy target")
+    p_cs.add_argument("--environment", nargs="*", help="Environment vars (KEY=VALUE)")
+    p_cs.add_argument("--template", action="store_true", help="Create template unit (@)")
+    p_cs.add_argument(
+        "--install", dest="do_install", action="store_true", help="Install after creating",
+    )
+
+    # create-timer
+    p_ct = sub.add_parser("create-timer", help="Generate a .timer unit file")
+    p_ct.add_argument("--name", required=True, help="Timer name (without .timer)")
+    p_ct.add_argument("--on-calendar", help="OnCalendar spec (e.g. daily, *-*-* 02:00)")
+    p_ct.add_argument("--on-boot-sec", type=int, help="OnBootSec in seconds")
+    p_ct.add_argument("--unit", dest="timer_unit", help="Service unit to trigger")
+    p_ct.add_argument("--persistent", action="store_true", help="Persistent timer")
+    p_ct.add_argument("--description", help="Unit description")
+    p_ct.add_argument("--wanted-by", default="timers.target", help="Install WantedBy target")
+    p_ct.add_argument(
+        "--install", dest="do_install", action="store_true", help="Install after creating",
+    )
+
+    # install (from file)
+    p_inst = sub.add_parser("install", help="Install a unit file")
+    p_inst.add_argument("unit", help="Unit name")
+    p_inst.add_argument("--from-file", required=True, help="Path to unit file")
+
+    # uninstall
+    p_uninst = sub.add_parser("uninstall", help="Remove an installed unit file")
+    p_uninst.add_argument("unit", help="Unit name")
+
     # journal
     p_journal = sub.add_parser("journal", help="Query journal entries")
     p_journal.add_argument("--unit", "-u", help="Filter by unit name")
@@ -181,6 +222,73 @@ def _dispatch(client: SystemdClient, args: argparse.Namespace) -> int:
             print(f"Reset failed state for {args.unit}")
         else:
             print("Reset all failed states")
+
+    elif cmd == "create-service":
+        from systemd_client.builders import ServiceBuilder
+        b = ServiceBuilder(args.name, template=args.template)
+        if args.description:
+            b.description(args.description)
+        b.type_(args.svc_type)
+        b.exec_start(args.exec_start)
+        if args.user:
+            b.user(args.user)
+        if args.group:
+            b.group(args.group)
+        if args.working_directory:
+            b.working_directory(args.working_directory)
+        if args.restart:
+            b.restart(args.restart)
+        if args.restart_sec:
+            b.restart_sec(args.restart_sec)
+        if args.after:
+            b.after(*args.after)
+        if args.environment:
+            env = dict(kv.split("=", 1) for kv in args.environment)
+            b.environment(env)
+        b.wanted_by(args.wanted_by)
+        unit = b.build()
+        if args.do_install:
+            path = client.install(unit)
+            print(f"Installed {unit.name} -> {path}")
+        else:
+            print(unit.content, end="")
+
+    elif cmd == "create-timer":
+        from systemd_client.builders import TimerBuilder
+        b = TimerBuilder(args.name)
+        if args.description:
+            b.description(args.description)
+        if args.on_calendar:
+            b.on_calendar(args.on_calendar)
+        if args.on_boot_sec:
+            b.on_boot_sec(args.on_boot_sec)
+        if args.timer_unit:
+            b.unit(args.timer_unit)
+        if args.persistent:
+            b.persistent(True)
+        b.wanted_by(args.wanted_by)
+        unit = b.build()
+        if args.do_install:
+            path = client.install(unit)
+            print(f"Installed {unit.name} -> {path}")
+        else:
+            print(unit.content, end="")
+
+    elif cmd == "install":
+        from pathlib import Path
+
+        from systemd_client.enums import UnitType
+        from systemd_client.models import UnitFile
+        content = Path(args.from_file).read_text(encoding="utf-8")
+        suffix = args.unit.rsplit(".", 1)[-1] if "." in args.unit else "service"
+        unit_type = UnitType(suffix)
+        unit = UnitFile(name=args.unit, content=content, unit_type=unit_type)
+        path = client.install(unit)
+        print(f"Installed {args.unit} -> {path}")
+
+    elif cmd == "uninstall":
+        client.uninstall(args.unit)
+        print(f"Uninstalled {args.unit}")
 
     elif cmd == "journal":
         priority = JournalPriority[args.priority.upper()] if args.priority else None

@@ -14,6 +14,7 @@ if TYPE_CHECKING:
         LoadState,
         SubState,
         UnitFileState,
+        UnitType,
     )
 
 
@@ -77,6 +78,15 @@ class UnitFileInfo:
     name: str
     state: UnitFileState
     preset: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class UnitFile:
+    """A generated systemd unit file."""
+
+    name: str
+    content: str
+    unit_type: UnitType
 
 
 @dataclass(frozen=True, slots=True)
