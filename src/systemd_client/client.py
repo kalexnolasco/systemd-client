@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from systemd_client.models import (
         EnableResult,
         JournalEntry,
+        TransientResult,
         UnitFile,
         UnitFileInfo,
         UnitInfo,
@@ -153,6 +154,35 @@ class AsyncSystemdClient:
     async def reset_failed(self, unit_name: str | None = None) -> None:
         """Reset the failed state of a unit, or all units if no name given."""
         await self._backend.reset_failed(unit_name)
+
+    async def run(
+        self,
+        command: str | list[str],
+        *,
+        name: str | None = None,
+        wait: bool = False,
+        properties: dict[str, str] | None = None,
+        remain_after_exit: bool = False,
+    ) -> TransientResult:
+        """Run a command as a transient systemd service (systemd-run)."""
+        cmd = [command] if isinstance(command, str) else command
+        return await self._backend.run_transient(
+            cmd, name=name, wait=wait, properties=properties,
+            remain_after_exit=remain_after_exit,
+        )
+
+    async def run_on_calendar(
+        self,
+        on_calendar: str,
+        command: str | list[str],
+        *,
+        name: str | None = None,
+    ) -> TransientResult:
+        """Schedule a command as a transient timer (systemd-run --on-calendar)."""
+        cmd = [command] if isinstance(command, str) else command
+        return await self._backend.run_transient_timer(
+            cmd, on_calendar=on_calendar, name=name,
+        )
 
     async def install(self, unit_file: UnitFile) -> str:
         """Install a unit file. Returns the path where it was written."""
@@ -318,6 +348,33 @@ class SystemdClient:
     def reset_failed(self, unit_name: str | None = None) -> None:
         """Reset the failed state of a unit, or all units if no name given."""
         run_sync(self._async_client.reset_failed(unit_name))
+
+    def run(
+        self,
+        command: str | list[str],
+        *,
+        name: str | None = None,
+        wait: bool = False,
+        properties: dict[str, str] | None = None,
+        remain_after_exit: bool = False,
+    ) -> TransientResult:
+        """Run a command as a transient systemd service (systemd-run)."""
+        return run_sync(self._async_client.run(
+            command, name=name, wait=wait, properties=properties,
+            remain_after_exit=remain_after_exit,
+        ))
+
+    def run_on_calendar(
+        self,
+        on_calendar: str,
+        command: str | list[str],
+        *,
+        name: str | None = None,
+    ) -> TransientResult:
+        """Schedule a command as a transient timer (systemd-run --on-calendar)."""
+        return run_sync(self._async_client.run_on_calendar(
+            on_calendar, command, name=name,
+        ))
 
     def install(self, unit_file: UnitFile) -> str:
         """Install a unit file. Returns the path where it was written."""

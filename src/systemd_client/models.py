@@ -90,6 +90,14 @@ class UnitFile:
 
 
 @dataclass(frozen=True, slots=True)
+class TransientResult:
+    """Result of running a transient unit via systemd-run."""
+
+    unit_name: str
+    pid: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class EnableResult:
     """Result of enable/disable/mask/unmask operations."""
 

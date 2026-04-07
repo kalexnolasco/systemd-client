@@ -6,7 +6,14 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from systemd_client.models import EnableResult, UnitFile, UnitFileInfo, UnitInfo, UnitStatus
+    from systemd_client.models import (
+        EnableResult,
+        TransientResult,
+        UnitFile,
+        UnitFileInfo,
+        UnitInfo,
+        UnitStatus,
+    )
 
 
 class AbstractBackend(ABC):
@@ -113,6 +120,29 @@ class AbstractBackend(ABC):
 
     @abstractmethod
     async def is_failed(self, unit_name: str) -> bool:
+        ...
+
+    @abstractmethod
+    async def run_transient(
+        self,
+        command: list[str],
+        *,
+        name: str | None = None,
+        properties: dict[str, str] | None = None,
+        remain_after_exit: bool = False,
+        wait: bool = False,
+    ) -> TransientResult:
+        ...
+
+    @abstractmethod
+    async def run_transient_timer(
+        self,
+        command: list[str],
+        *,
+        on_calendar: str | None = None,
+        on_active: str | None = None,
+        name: str | None = None,
+    ) -> TransientResult:
         ...
 
     @abstractmethod

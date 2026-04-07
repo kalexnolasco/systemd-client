@@ -18,11 +18,12 @@ from systemd_client.enums import (
     UnitFileState,
 )
 from systemd_client.exceptions import (
+    SubprocessError,
     UnitFileInstallError,
     UnitNotFoundError,
     UnitOperationError,
 )
-from systemd_client.models import EnableResult, UnitFileInfo, UnitInfo, UnitStatus
+from systemd_client.models import EnableResult, TransientResult, UnitFileInfo, UnitInfo, UnitStatus
 
 if TYPE_CHECKING:
     from systemd_client.models import UnitFile
@@ -340,6 +341,82 @@ class DBusBackend(AbstractBackend):
             return state == "failed"
         except Exception:
             return False
+
+    # ── Transient units (systemd-run via subprocess) ──────────
+
+    async def _run_systemd_run(self, *args: str) -> tuple[str, str, int]:
+        scope_flag = f"--{self._scope.value}"
+        cmd = ["systemd-run", scope_flag, *args]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_bytes, stderr_bytes = await proc.communicate()
+        stdout = stdout_bytes.decode("utf-8", errors="replace")
+        stderr = stderr_bytes.decode("utf-8", errors="replace")
+        returncode = proc.returncode or 0
+        if returncode != 0:
+            raise SubprocessError(cmd, returncode, stderr.strip())
+        return stdout, stderr, returncode
+
+    def _parse_transient_result(self, stdout: str, stderr: str) -> TransientResult:
+        combined = stdout + stderr
+        unit_name = ""
+        pid = None
+        for line in combined.splitlines():
+            if "Running as unit:" in line or "Running timer as unit:" in line:
+                unit_name = line.split(":")[-1].strip().rstrip(".")
+            elif "as PID" in line:
+                for part in line.split():
+                    if part.isdigit():
+                        pid = int(part)
+                        break
+        return TransientResult(unit_name=unit_name, pid=pid)
+
+    async def run_transient(
+        self,
+        command: list[str],
+        *,
+        name: str | None = None,
+        properties: dict[str, str] | None = None,
+        remain_after_exit: bool = False,
+        wait: bool = False,
+    ) -> TransientResult:
+        args: list[str] = []
+        if name:
+            args.extend(["--unit", name])
+        if remain_after_exit:
+            args.append("--remain-after-exit")
+        if wait:
+            args.append("--wait")
+        if properties:
+            for k, v in properties.items():
+                args.extend(["--property", f"{k}={v}"])
+        args.append("--")
+        args.extend(command)
+        stdout, stderr, _ = await self._run_systemd_run(*args)
+        return self._parse_transient_result(stdout, stderr)
+
+    async def run_transient_timer(
+        self,
+        command: list[str],
+        *,
+        on_calendar: str | None = None,
+        on_active: str | None = None,
+        name: str | None = None,
+    ) -> TransientResult:
+        args: list[str] = []
+        if name:
+            args.extend(["--unit", name])
+        if on_calendar:
+            args.extend(["--on-calendar", on_calendar])
+        if on_active:
+            args.extend(["--on-active", on_active])
+        args.append("--")
+        args.extend(command)
+        stdout, stderr, _ = await self._run_systemd_run(*args)
+        return self._parse_transient_result(stdout, stderr)
 
     # ── Unit file install / uninstall / edit ────────────────────
 

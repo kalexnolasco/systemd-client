@@ -76,6 +76,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p_reset = sub.add_parser("reset-failed", help="Reset failed state")
     p_reset.add_argument("unit", nargs="?", help="Unit name (all if omitted)")
 
+    # run (transient)
+    p_run = sub.add_parser("run", help="Run a command as a transient systemd service")
+    p_run.add_argument("cmd", nargs="+", help="Command to run")
+    p_run.add_argument("--name", help="Unit name for the transient service")
+    p_run.add_argument("--wait", action="store_true", help="Wait for completion")
+    p_run.add_argument(
+        "--property", dest="properties", nargs="*", help="Properties (KEY=VALUE)",
+    )
+    p_run.add_argument("--remain-after-exit", action="store_true", help="Keep unit after exit")
+    p_run.add_argument("--on-calendar", help="Schedule as timer (e.g. daily, hourly)")
+
     # create-service
     p_cs = sub.add_parser("create-service", help="Generate a .service unit file")
     p_cs.add_argument("--name", required=True, help="Service name (without .service)")
@@ -222,6 +233,26 @@ def _dispatch(client: SystemdClient, args: argparse.Namespace) -> int:
             print(f"Reset failed state for {args.unit}")
         else:
             print("Reset all failed states")
+
+    elif cmd == "run":
+        props = {}
+        if args.properties:
+            props = dict(kv.split("=", 1) for kv in args.properties)
+        if args.on_calendar:
+            result = client.run_on_calendar(
+                args.on_calendar, args.cmd, name=args.name,
+            )
+            print(f"Scheduled timer: {result.unit_name}")
+        else:
+            result = client.run(
+                args.cmd, name=args.name, wait=args.wait,
+                properties=props or None,
+                remain_after_exit=args.remain_after_exit,
+            )
+            msg = f"Running: {result.unit_name}"
+            if result.pid:
+                msg += f" (PID {result.pid})"
+            print(msg)
 
     elif cmd == "create-service":
         from systemd_client.builders import ServiceBuilder

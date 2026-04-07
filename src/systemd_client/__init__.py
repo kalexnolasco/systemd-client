@@ -31,6 +31,7 @@ from systemd_client.journal import AsyncJournalReader, JournalQuery, JournalRead
 from systemd_client.models import (
     EnableResult,
     JournalEntry,
+    TransientResult,
     UnitFile,
     UnitFileInfo,
     UnitInfo,
@@ -63,6 +64,7 @@ __all__ = [
     "SystemdClientError",
     "SystemdScope",
     "TimerBuilder",
+    "TransientResult",
     "UnitFile",
     "UnitFileInfo",
     "UnitFileInstallError",
