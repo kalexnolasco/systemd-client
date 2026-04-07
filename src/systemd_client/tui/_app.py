@@ -458,9 +458,59 @@ def render(term: Terminal, state: dict[str, Any]) -> None:
 # ── Event Handling ──────────────────────────────────────────────
 
 
+def _handle_mouse(evt: dict[str, Any], state: dict[str, Any]) -> None:
+    """Handle mouse events: click to select, scroll to navigate."""
+    x = evt.get("x", 0)
+    y = evt.get("y", 0)
+    mouse_kind = evt.get("mouse_kind", 0)
+    mouse_btn = evt.get("mouse_btn", 0)
+
+    # Only handle on dashboard tab
+    if state.get("tab", 0) != 0:
+        return
+
+    w, _h = state.get("_term_size", (80, 24))
+    body_y = 2  # header + tabs
+    left_w = int(w * 0.6)
+
+    # Scroll in unit table area
+    if x < left_w and y >= body_y:
+        if mouse_kind == 5:  # ScrollUp
+            state["selected"] = max(0, state["selected"] - 3)
+        elif mouse_kind == 6:  # ScrollDown
+            units = state.get("_filtered", state.get("units", []))
+            state["selected"] = min(len(units) - 1, state["selected"] + 3)
+
+    # Click in unit table to select row
+    if mouse_kind == 1 and mouse_btn == 1 and x < left_w and y >= body_y + 1:
+        row = y - body_y - 1  # subtract header row
+        units = state.get("_filtered", state.get("units", []))
+        if 0 <= row < len(units):
+            state["selected"] = row
+
+    # Click on tabs (y == 1)
+    if mouse_kind == 1 and mouse_btn == 1 and y == 1:
+        # Approximate tab positions
+        if x < 12:
+            state["tab"] = 0
+        elif x < 22:
+            state["tab"] = 1
+        elif x < 30:
+            state["tab"] = 2
+
+
 def on_event(term: Terminal, evt: dict[str, Any], state: dict[str, Any]) -> bool:
-    """Handle keyboard events."""
-    if evt.get("kind") != "key":
+    """Handle keyboard and mouse events."""
+    kind = evt.get("kind", "")
+
+    # Mouse events
+    if kind == "mouse":
+        w, h = term.size()
+        state["_term_size"] = (w, h)
+        _handle_mouse(evt, state)
+        return True
+
+    if kind != "key":
         return True
 
     ch = evt.get("ch", 0)
