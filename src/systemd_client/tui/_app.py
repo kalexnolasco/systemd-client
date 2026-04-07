@@ -224,9 +224,23 @@ def on_event(term: Terminal, evt: dict[str, Any], state: dict[str, Any]) -> bool
     if char == "q" or code == KeyCode.Esc:
         return False
 
-    if code == KeyCode.Up or char == "k":
+    if code == KeyCode.Tab:
+        if state["scope"] == "user":
+            state["scope"] = "system"
+        else:
+            state["scope"] = "user"
+        state["message"] = f"Switched to {state['scope']} scope"
+        state["needs_reload"] = True
+        # Recreate client with new scope
+        client.close()
+        new_scope = SystemdScope(state["scope"])
+        new_client = SystemdClient(scope=new_scope)
+        state["client"] = new_client
+        return True
+
+    if code == KeyCode.Up:
         state["selected"] = max(0, state["selected"] - 1)
-    elif code == KeyCode.Down or char == "K":
+    elif code == KeyCode.Down:
         state["selected"] = min(len(units) - 1, state["selected"] + 1)
     elif code == KeyCode.PageUp:
         state["selected"] = max(0, state["selected"] - 10)
@@ -266,14 +280,6 @@ def on_event(term: Terminal, evt: dict[str, Any], state: dict[str, Any]) -> bool
                 entries = client.journal(unit=unit_name, lines=50)
                 state["journal"] = entries
                 state["message"] = f"Loaded {len(entries)} journal entries"
-            elif char == "\t":
-                # Toggle scope
-                if state["scope"] == "user":
-                    state["scope"] = "system"
-                else:
-                    state["scope"] = "user"
-                state["message"] = f"Switched to {state['scope']} scope"
-                state["needs_reload"] = True
         except Exception as exc:
             state["message"] = f"Error: {exc}"
 
