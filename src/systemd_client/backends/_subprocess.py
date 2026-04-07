@@ -26,12 +26,14 @@ from systemd_client.exceptions import (
 from systemd_client.models import (
     EnableResult,
     ResourceUsage,
+    SessionInfo,
     SocketInfo,
     TimerInfo,
     TransientResult,
     UnitFileInfo,
     UnitInfo,
     UnitStatus,
+    UserInfo,
 )
 
 if TYPE_CHECKING:
@@ -330,6 +332,72 @@ class SubprocessBackend(AbstractBackend):
         return returncode == 0
 
     # ── Unit file install / uninstall / edit ────────────────────
+
+    # ── Environment management ───────────────────────────────
+
+    async def show_environment(self) -> dict[str, str]:
+        stdout, _, _ = await self._run_systemctl("show-environment")
+        env: dict[str, str] = {}
+        for line in stdout.splitlines():
+            if "=" in line:
+                k, _, v = line.partition("=")
+                env[k] = v
+        return env
+
+    async def set_environment(self, variables: dict[str, str]) -> None:
+        args = ["set-environment"]
+        for k, v in variables.items():
+            args.append(f"{k}={v}")
+        await self._run_systemctl(*args)
+
+    async def unset_environment(self, names: list[str]) -> None:
+        await self._run_systemctl("unset-environment", *names)
+
+    # ── Session management (loginctl) ──────────────────────────
+
+    async def _run_loginctl(self, *args: str) -> str:
+        cmd = ["loginctl", *args]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_bytes, stderr_bytes = await proc.communicate()
+        if proc.returncode and proc.returncode != 0:
+            stderr = stderr_bytes.decode("utf-8", errors="replace").strip()
+            raise SubprocessError(cmd, proc.returncode, stderr)
+        return stdout_bytes.decode("utf-8", errors="replace")
+
+    async def list_sessions(self) -> list[SessionInfo]:
+        stdout = await self._run_loginctl("list-sessions", "--output=json", "--no-pager")
+        data = json.loads(stdout) if stdout.strip() else []
+        return [
+            SessionInfo(
+                id=str(s.get("session", "")),
+                uid=int(s.get("uid", 0)),
+                user=s.get("user", ""),
+                seat=s.get("seat", ""),
+                tty=s.get("tty", ""),
+                state=s.get("state", ""),
+            )
+            for s in data
+        ]
+
+    async def list_users(self) -> list[UserInfo]:
+        stdout = await self._run_loginctl("list-users", "--output=json", "--no-pager")
+        data = json.loads(stdout) if stdout.strip() else []
+        return [
+            UserInfo(
+                uid=int(u.get("uid", 0)),
+                name=u.get("user", ""),
+                state=u.get("state", ""),
+            )
+            for u in data
+        ]
+
+    async def terminate_session(self, session_id: str) -> None:
+        await self._run_loginctl("terminate-session", session_id)
+
+    async def lock_session(self, session_id: str) -> None:
+        await self._run_loginctl("lock-session", session_id)
 
     # ── Resource control + monitoring ─────────────────────────
 

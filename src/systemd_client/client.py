@@ -20,6 +20,7 @@ if TYPE_CHECKING:
         JournalEntry,
         ResourceUsage,
         SecurityAnalysis,
+        SessionInfo,
         SocketInfo,
         TimerInfo,
         TransientResult,
@@ -27,6 +28,7 @@ if TYPE_CHECKING:
         UnitFileInfo,
         UnitInfo,
         UnitStatus,
+        UserInfo,
     )
 
 
@@ -224,6 +226,34 @@ class AsyncSystemdClient:
     async def edit(self, unit_name: str, overrides: dict[str, dict[str, str]]) -> str:
         """Create a drop-in override for a unit. Returns the override path."""
         return await self._backend.edit_unit_file(unit_name, overrides)
+
+    async def show_environment(self) -> dict[str, str]:
+        """Show the manager's environment variables."""
+        return await self._backend.show_environment()
+
+    async def set_environment(self, variables: dict[str, str]) -> None:
+        """Set environment variables for the manager."""
+        await self._backend.set_environment(variables)
+
+    async def unset_environment(self, names: list[str]) -> None:
+        """Unset environment variables from the manager."""
+        await self._backend.unset_environment(names)
+
+    async def list_sessions(self) -> list[SessionInfo]:
+        """List active login sessions."""
+        return await self._backend.list_sessions()
+
+    async def list_users(self) -> list[UserInfo]:
+        """List logged-in users."""
+        return await self._backend.list_users()
+
+    async def terminate_session(self, session_id: str) -> None:
+        """Terminate a login session."""
+        await self._backend.terminate_session(session_id)
+
+    async def lock_session(self, session_id: str) -> None:
+        """Lock a login session."""
+        await self._backend.lock_session(session_id)
 
     async def poweroff(self) -> None:
         """Power off the system."""
@@ -476,6 +506,34 @@ class SystemdClient:
     def edit(self, unit_name: str, overrides: dict[str, dict[str, str]]) -> str:
         """Create a drop-in override for a unit. Returns the override path."""
         return run_sync(self._async_client.edit(unit_name, overrides))
+
+    def show_environment(self) -> dict[str, str]:
+        """Show the manager's environment variables."""
+        return run_sync(self._async_client.show_environment())
+
+    def set_environment(self, variables: dict[str, str]) -> None:
+        """Set environment variables for the manager."""
+        run_sync(self._async_client.set_environment(variables))
+
+    def unset_environment(self, names: list[str]) -> None:
+        """Unset environment variables from the manager."""
+        run_sync(self._async_client.unset_environment(names))
+
+    def list_sessions(self) -> list[SessionInfo]:
+        """List active login sessions."""
+        return run_sync(self._async_client.list_sessions())
+
+    def list_users(self) -> list[UserInfo]:
+        """List logged-in users."""
+        return run_sync(self._async_client.list_users())
+
+    def terminate_session(self, session_id: str) -> None:
+        """Terminate a login session."""
+        run_sync(self._async_client.terminate_session(session_id))
+
+    def lock_session(self, session_id: str) -> None:
+        """Lock a login session."""
+        run_sync(self._async_client.lock_session(session_id))
 
     def poweroff(self) -> None:
         """Power off the system."""

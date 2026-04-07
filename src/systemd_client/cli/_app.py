@@ -77,6 +77,17 @@ def _build_parser() -> argparse.ArgumentParser:
     p_reset = sub.add_parser("reset-failed", help="Reset failed state")
     p_reset.add_argument("unit", nargs="?", help="Unit name (all if omitted)")
 
+    # environment
+    sub.add_parser("show-environment", help="Show manager environment variables")
+    p_setenv = sub.add_parser("set-environment", help="Set environment variables")
+    p_setenv.add_argument("vars", nargs="+", help="Variables (KEY=VALUE)")
+    p_unsetenv = sub.add_parser("unset-environment", help="Unset environment variables")
+    p_unsetenv.add_argument("names", nargs="+", help="Variable names to unset")
+
+    # sessions
+    sub.add_parser("list-sessions", help="List active login sessions")
+    sub.add_parser("list-users", help="List logged-in users")
+
     # power management
     sub.add_parser("poweroff", help="Power off the system")
     sub.add_parser("reboot", help="Reboot the system")
@@ -264,6 +275,45 @@ def _dispatch(client: SystemdClient, args: argparse.Namespace) -> int:
             print(f"Reset failed state for {args.unit}")
         else:
             print("Reset all failed states")
+
+    elif cmd == "show-environment":
+        env = client.show_environment()
+        if args.use_json:
+            print(json.dumps(env, indent=2))
+        else:
+            for k, v in sorted(env.items()):
+                print(f"{k}={v}")
+
+    elif cmd == "set-environment":
+        variables = dict(kv.split("=", 1) for kv in args.vars)
+        client.set_environment(variables)
+        print(f"Set {len(variables)} variable(s)")
+
+    elif cmd == "unset-environment":
+        client.unset_environment(args.names)
+        print(f"Unset {len(args.names)} variable(s)")
+
+    elif cmd == "list-sessions":
+        sessions = client.list_sessions()
+        if args.use_json:
+            from dataclasses import asdict
+            print(json.dumps([asdict(s) for s in sessions], indent=2))
+        elif not sessions:
+            print("No sessions found.")
+        else:
+            for s in sessions:
+                print(f"  {s.id}  {s.user} (uid={s.uid})  {s.tty}  {s.state}")
+
+    elif cmd == "list-users":
+        users = client.list_users()
+        if args.use_json:
+            from dataclasses import asdict
+            print(json.dumps([asdict(u) for u in users], indent=2))
+        elif not users:
+            print("No users found.")
+        else:
+            for u in users:
+                print(f"  {u.uid}  {u.name}  {u.state}")
 
     elif cmd in ("poweroff", "reboot", "suspend", "hibernate"):
         getattr(client, cmd)()

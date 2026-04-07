@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from systemd_client.models import (
         EnableResult,
         ResourceUsage,
+        SessionInfo,
         SocketInfo,
         TimerInfo,
         TransientResult,
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
         UnitFileInfo,
         UnitInfo,
         UnitStatus,
+        UserInfo,
     )
 
 
@@ -123,6 +125,34 @@ class AbstractBackend(ABC):
 
     @abstractmethod
     async def is_failed(self, unit_name: str) -> bool:
+        ...
+
+    @abstractmethod
+    async def show_environment(self) -> dict[str, str]:
+        ...
+
+    @abstractmethod
+    async def set_environment(self, variables: dict[str, str]) -> None:
+        ...
+
+    @abstractmethod
+    async def unset_environment(self, names: list[str]) -> None:
+        ...
+
+    @abstractmethod
+    async def list_sessions(self) -> list[SessionInfo]:
+        ...
+
+    @abstractmethod
+    async def list_users(self) -> list[UserInfo]:
+        ...
+
+    @abstractmethod
+    async def terminate_session(self, session_id: str) -> None:
+        ...
+
+    @abstractmethod
+    async def lock_session(self, session_id: str) -> None:
         ...
 
     @abstractmethod

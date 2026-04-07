@@ -35,6 +35,7 @@ from systemd_client.models import (
     ResourceUsage,
     SecurityAnalysis,
     SecurityIssue,
+    SessionInfo,
     SocketInfo,
     TimerInfo,
     TransientResult,
@@ -42,6 +43,7 @@ from systemd_client.models import (
     UnitFileInfo,
     UnitInfo,
     UnitStatus,
+    UserInfo,
 )
 from systemd_client.notify import SystemdNotifier
 
@@ -68,6 +70,7 @@ __all__ = [
     "SecurityIssue",
     "ServiceBuilder",
     "ServiceType",
+    "SessionInfo",
     "SocketBuilder",
     "SocketInfo",
     "SubState",
@@ -89,5 +92,6 @@ __all__ = [
     "UnitOperationError",
     "UnitStatus",
     "UnitType",
+    "UserInfo",
     "__version__",
 ]

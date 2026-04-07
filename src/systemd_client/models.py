@@ -90,6 +90,27 @@ class UnitFile:
 
 
 @dataclass(frozen=True, slots=True)
+class SessionInfo:
+    """Information about a login session (from loginctl)."""
+
+    id: str
+    uid: int
+    user: str
+    seat: str = ""
+    tty: str = ""
+    state: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class UserInfo:
+    """Information about a logged-in user (from loginctl)."""
+
+    uid: int
+    name: str
+    state: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class BlameEntry:
     """A single entry from systemd-analyze blame."""
 
