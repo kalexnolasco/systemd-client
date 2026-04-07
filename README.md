@@ -4,6 +4,7 @@
 [![Python](https://img.shields.io/pypi/pyversions/systemd-client?style=flat-square)](https://pypi.org/project/systemd-client/)
 [![License](https://img.shields.io/pypi/l/systemd-client?style=flat-square)](https://github.com/kalexnolasco/systemd-client/blob/main/LICENSE)
 [![Tests](https://img.shields.io/github/actions/workflow/status/kalexnolasco/systemd-client/tests.yml?style=flat-square&label=tests)](https://github.com/kalexnolasco/systemd-client/actions)
+[![286 tests](https://img.shields.io/badge/tests-286%20passed-brightgreen?style=flat-square)](https://github.com/kalexnolasco/systemd-client/actions)
 [![Docs](https://img.shields.io/badge/docs-kalexnolasco.github.io-blue?style=flat-square)](https://kalexnolasco.github.io/systemd-client/)
 
 **The definitive Python library for systemd.** Manage services, create units, read journals, analyze security, control resources, and monitor everything — from Python or the terminal.

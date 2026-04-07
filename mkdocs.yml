@@ -1,6 +1,6 @@
 site_name: systemd-client
 site_url: https://kalexnolasco.github.io/systemd-client/
-site_description: High-level Python client for systemd user services
+site_description: The definitive Python library for systemd — manage services, create units, read journals, analyze security, control resources, and monitor everything
 site_author: kalexnolasco
 repo_url: https://github.com/kalexnolasco/systemd-client
 repo_name: kalexnolasco/systemd-client
@@ -27,6 +27,7 @@ theme:
     - navigation.tabs
     - navigation.sections
     - navigation.top
+    - navigation.expand
     - search.highlight
     - toc.follow
   icon:
@@ -75,14 +76,24 @@ nav:
   - User Guide:
     - Sync Client: guide/sync-client.md
     - Async Client: guide/async-client.md
+    - Unit File Builder: guide/builders.md
+    - Transient Units: guide/transient.md
     - Journal: guide/journal.md
-    - CLI: guide/cli.md
+    - Resource Control: guide/resources.md
+    - System Analysis: guide/analyze.md
+    - sd_notify Protocol: guide/notify.md
+    - Environment & Sessions: guide/sessions.md
+    - Interactive TUI: guide/tui.md
+    - CLI Reference: guide/cli.md
     - Backends: guide/backends.md
     - Error Handling: guide/errors.md
   - API Reference:
     - Client: api/client.md
     - Models: api/models.md
     - Enums: api/enums.md
+    - Builders: api/builders.md
+    - Analyze: api/analyze.md
+    - Notify: api/notify.md
     - Exceptions: api/exceptions.md
     - Journal: api/journal.md
     - Backends: api/backends.md

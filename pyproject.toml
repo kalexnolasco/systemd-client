@@ -1,6 +1,6 @@
 [project]
 name = "systemd-client"
-version = "0.9.0"
+version = "0.9.1"
 description = "High-level Python client for systemd user services: unit management, journal reading, sync + async"
 readme = "README.md"
 license = "LGPL-2.1-or-later"
@@ -9,7 +9,7 @@ authors = [
     { name = "kalexnolasco" },
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Intended Audience :: System Administrators",
     "License :: OSI Approved :: GNU Lesser General Public License v2 or later (LGPLv2+)",
