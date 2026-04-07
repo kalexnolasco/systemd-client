@@ -385,26 +385,33 @@ class DBusBackend(AbstractBackend):
         return stdout_bytes.decode("utf-8", errors="replace")
 
     async def list_sessions(self) -> list[SessionInfo]:
-        stdout = await self._run_loginctl("list-sessions", "--output=json", "--no-pager")
-        import json
-        data = json.loads(stdout) if stdout.strip() else []
-        return [
-            SessionInfo(
-                id=str(s.get("session", "")), uid=int(s.get("uid", 0)),
-                user=s.get("user", ""), seat=s.get("seat", ""),
-                tty=s.get("tty", ""), state=s.get("state", ""),
-            )
-            for s in data
-        ]
+        stdout = await self._run_loginctl("list-sessions", "--no-legend", "--no-pager")
+        sessions: list[SessionInfo] = []
+        for line in stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 2:
+                sessions.append(SessionInfo(
+                    id=parts[0],
+                    uid=int(parts[1]) if parts[1].isdigit() else 0,
+                    user=parts[2] if len(parts) > 2 else "",
+                    seat=parts[3] if len(parts) > 3 else "",
+                    tty=parts[4] if len(parts) > 4 else "",
+                    state=parts[-1] if len(parts) > 2 else "",
+                ))
+        return sessions
 
     async def list_users(self) -> list[UserInfo]:
-        stdout = await self._run_loginctl("list-users", "--output=json", "--no-pager")
-        import json
-        data = json.loads(stdout) if stdout.strip() else []
-        return [
-            UserInfo(uid=int(u.get("uid", 0)), name=u.get("user", ""), state=u.get("state", ""))
-            for u in data
-        ]
+        stdout = await self._run_loginctl("list-users", "--no-legend", "--no-pager")
+        users: list[UserInfo] = []
+        for line in stdout.splitlines():
+            parts = line.split()
+            if len(parts) >= 2:
+                users.append(UserInfo(
+                    uid=int(parts[0]) if parts[0].isdigit() else 0,
+                    name=parts[1],
+                    state=parts[-1] if len(parts) > 2 else "",
+                ))
+        return users
 
     async def terminate_session(self, session_id: str) -> None:
         await self._run_loginctl("terminate-session", session_id)

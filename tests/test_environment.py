@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -68,11 +67,8 @@ class TestUnsetEnvironment:
 
 class TestListSessions:
     @pytest.mark.asyncio
-    async def test_parses_json(self, backend, mock_loginctl):
-        data = [
-            {"session": "3", "uid": 1000, "user": "testuser", "seat": "seat0", "tty": "tty2"},
-        ]
-        mock_loginctl(stdout=json.dumps(data))
+    async def test_parses_text(self, backend, mock_loginctl):
+        mock_loginctl(stdout="3 1000 testuser seat0 tty2 active\n")
         sessions = await backend.list_sessions()
         assert len(sessions) == 1
         assert sessions[0].id == "3"
@@ -87,9 +83,8 @@ class TestListSessions:
 
 class TestListUsers:
     @pytest.mark.asyncio
-    async def test_parses_json(self, backend, mock_loginctl):
-        data = [{"uid": 1000, "user": "testuser", "state": "active"}]
-        mock_loginctl(stdout=json.dumps(data))
+    async def test_parses_text(self, backend, mock_loginctl):
+        mock_loginctl(stdout="1000 testuser yes active\n")
         users = await backend.list_users()
         assert len(users) == 1
         assert users[0].name == "testuser"
