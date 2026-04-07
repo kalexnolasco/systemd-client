@@ -1,6 +1,6 @@
 """Tests for JournalQuery."""
 
-from systemd_client.enums import JournalPriority
+from systemd_client.enums import JournalPriority, SystemdScope
 from systemd_client.journal._query import JournalQuery
 
 
@@ -11,6 +11,18 @@ class TestJournalQuery:
         assert "--user" in args
         assert "--output=json" in args
         assert "--no-pager" in args
+
+    def test_system_scope(self):
+        q = JournalQuery(scope=SystemdScope.SYSTEM)
+        args = q.to_args()
+        assert "--system" in args
+        assert "--user" not in args
+
+    def test_user_scope(self):
+        q = JournalQuery(scope=SystemdScope.USER)
+        args = q.to_args()
+        assert "--user" in args
+        assert "--system" not in args
 
     def test_unit_filter(self):
         q = JournalQuery(unit="test.service")

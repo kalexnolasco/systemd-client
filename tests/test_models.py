@@ -4,8 +4,14 @@ from datetime import UTC, datetime
 
 import pytest
 
-from systemd_client.enums import ActiveState, JournalPriority, LoadState, SubState
-from systemd_client.models import EnableResult, JournalEntry, UnitInfo, UnitStatus
+from systemd_client.enums import (
+    ActiveState,
+    JournalPriority,
+    LoadState,
+    SubState,
+    UnitFileState,
+)
+from systemd_client.models import EnableResult, JournalEntry, UnitFileInfo, UnitInfo, UnitStatus
 
 
 class TestUnitInfo:
@@ -44,9 +50,11 @@ class TestUnitStatus:
             fragment_path="/etc/systemd/user/test.service",
             active_enter_timestamp=ts,
             main_pid=1234,
+            exec_main_status=0,
             properties={"key": "value"},
         )
         assert status.main_pid == 1234
+        assert status.exec_main_status == 0
         assert status.properties["key"] == "value"
 
     def test_defaults(self):
@@ -60,6 +68,28 @@ class TestUnitStatus:
         assert status.triggered_by == []
         assert status.documentation == []
         assert status.properties == {}
+        assert status.exec_main_status is None
+
+
+class TestUnitFileInfo:
+    def test_creation(self):
+        info = UnitFileInfo(
+            name="test.service",
+            state=UnitFileState.ENABLED,
+            preset="enabled",
+        )
+        assert info.name == "test.service"
+        assert info.state == UnitFileState.ENABLED
+        assert info.preset == "enabled"
+
+    def test_defaults(self):
+        info = UnitFileInfo(name="test.service", state=UnitFileState.DISABLED)
+        assert info.preset is None
+
+    def test_frozen(self):
+        info = UnitFileInfo(name="test.service", state=UnitFileState.ENABLED)
+        with pytest.raises(AttributeError):
+            info.name = "other"  # type: ignore[misc]
 
 
 class TestJournalEntry:

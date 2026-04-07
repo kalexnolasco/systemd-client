@@ -3,16 +3,23 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from typing import Any
 
 from systemd_client._unit_escape import unit_dbus_object_path
 from systemd_client.backends._base import AbstractBackend
-from systemd_client.enums import ActiveState, LoadState, SubState, UnitFileState
+from systemd_client.enums import (
+    ActiveState,
+    LoadState,
+    SubState,
+    SystemdScope,
+    UnitFileState,
+)
 from systemd_client.exceptions import UnitNotFoundError, UnitOperationError
-from systemd_client.models import EnableResult, UnitInfo, UnitStatus
+from systemd_client.models import EnableResult, UnitFileInfo, UnitInfo, UnitStatus
 
 try:
-    from dasbus.connection import SessionMessageBus
+    from dasbus.connection import SessionMessageBus, SystemMessageBus
     from dasbus.typing import get_native
 except ImportError as _exc:
     raise ImportError(
@@ -31,8 +38,12 @@ _SYSTEMD_BUS_NAME = "org.freedesktop.systemd1"
 class DBusBackend(AbstractBackend):
     """Backend that communicates via D-Bus using dasbus."""
 
-    def __init__(self) -> None:
-        self._bus = SessionMessageBus()
+    def __init__(self, scope: SystemdScope = SystemdScope.USER) -> None:
+        self._scope = scope
+        if scope == SystemdScope.SYSTEM:
+            self._bus = SystemMessageBus()
+        else:
+            self._bus = SessionMessageBus()
         self._manager = self._bus.get_proxy(_SYSTEMD_BUS_NAME, _SYSTEMD_PATH)
 
     def _get_unit_proxy(self, unit_name: str) -> Any:
@@ -78,6 +89,33 @@ class DBusBackend(AbstractBackend):
             ))
         return units
 
+    async def list_unit_files(
+        self,
+        unit_type: str | None = None,
+        state: str | None = None,
+    ) -> list[UnitFileInfo]:
+        raw_files = await asyncio.to_thread(self._manager.ListUnitFiles)
+        files: list[UnitFileInfo] = []
+        for file_data in get_native(raw_files):
+            name = file_data[0]
+            raw_state = file_data[1]
+
+            if unit_type and not name.endswith(f".{unit_type}"):
+                continue
+
+            try:
+                file_state = UnitFileState(raw_state)
+            except ValueError:
+                continue
+
+            if state and file_state.value != state:
+                continue
+
+            # Use just the filename, not the full path
+            short_name = name.rsplit("/", 1)[-1] if "/" in name else name
+            files.append(UnitFileInfo(name=short_name, state=file_state))
+        return files
+
     async def get_unit_status(self, unit_name: str) -> UnitStatus:
         try:
             proxy = await asyncio.to_thread(self._get_unit_proxy, unit_name)
@@ -90,7 +128,12 @@ class DBusBackend(AbstractBackend):
                 "UnitFileState": proxy.UnitFileState,
                 "FragmentPath": proxy.FragmentPath,
                 "MainPID": proxy.MainPID,
+                "ExecMainStatus": proxy.ExecMainStatus,
                 "Result": proxy.Result,
+                "ActiveEnterTimestamp": proxy.ActiveEnterTimestamp,
+                "ActiveExitTimestamp": proxy.ActiveExitTimestamp,
+                "InactiveEnterTimestamp": proxy.InactiveEnterTimestamp,
+                "InactiveExitTimestamp": proxy.InactiveExitTimestamp,
             })
         except Exception as exc:
             error_msg = str(exc).lower()
@@ -109,6 +152,25 @@ class DBusBackend(AbstractBackend):
             except ValueError:
                 return cls(default)
 
+        def _usec_to_datetime(usec: Any) -> datetime | None:
+            try:
+                val = int(usec)
+                if val == 0:
+                    return None
+                return datetime.fromtimestamp(val / 1_000_000, tz=UTC)
+            except (ValueError, OSError, TypeError):
+                return None
+
+        main_pid = native_props.get("MainPID")
+        main_pid = main_pid if main_pid and main_pid != 0 else None
+
+        exec_main_status = native_props.get("ExecMainStatus")
+        if exec_main_status is not None:
+            try:
+                exec_main_status = int(exec_main_status)
+            except (ValueError, TypeError):
+                exec_main_status = None
+
         return UnitStatus(
             name=native_props.get("Id", unit_name),
             description=native_props.get("Description", ""),
@@ -124,10 +186,38 @@ class DBusBackend(AbstractBackend):
                 if native_props.get("UnitFileState") else None
             ),
             fragment_path=native_props.get("FragmentPath") or None,
-            main_pid=native_props.get("MainPID") or None,
+            active_enter_timestamp=_usec_to_datetime(native_props.get("ActiveEnterTimestamp")),
+            active_exit_timestamp=_usec_to_datetime(native_props.get("ActiveExitTimestamp")),
+            inactive_enter_timestamp=_usec_to_datetime(
+                native_props.get("InactiveEnterTimestamp"),
+            ),
+            inactive_exit_timestamp=_usec_to_datetime(
+                native_props.get("InactiveExitTimestamp"),
+            ),
+            main_pid=main_pid,
+            exec_main_status=exec_main_status,
             result=native_props.get("Result") or None,
             properties={k: str(v) for k, v in native_props.items()},
         )
+
+    async def cat(self, unit_name: str) -> str:
+        try:
+            proxy = await asyncio.to_thread(self._get_unit_proxy, unit_name)
+            fragment = await asyncio.to_thread(lambda: get_native(proxy.FragmentPath))
+        except Exception as exc:
+            error_msg = str(exc).lower()
+            if "no such unit" in error_msg or "not found" in error_msg:
+                raise UnitNotFoundError(unit_name) from exc
+            raise
+
+        if not fragment:
+            raise UnitNotFoundError(unit_name)
+
+        def _read_file(path: str) -> str:
+            with open(path) as f:
+                return f.read()
+
+        return await asyncio.to_thread(_read_file, fragment)
 
     async def _unit_action(self, unit_name: str, action: str) -> None:
         method = getattr(self._manager, f"{action}Unit")
@@ -136,17 +226,32 @@ class DBusBackend(AbstractBackend):
         except Exception as exc:
             raise UnitOperationError(unit_name, action.lower(), str(exc)) from exc
 
-    async def start_unit(self, unit_name: str) -> None:
+    async def start_unit(self, unit_name: str, no_block: bool = False) -> None:
         await self._unit_action(unit_name, "Start")
 
-    async def stop_unit(self, unit_name: str) -> None:
+    async def stop_unit(self, unit_name: str, no_block: bool = False) -> None:
         await self._unit_action(unit_name, "Stop")
 
-    async def restart_unit(self, unit_name: str) -> None:
+    async def restart_unit(self, unit_name: str, no_block: bool = False) -> None:
         await self._unit_action(unit_name, "Restart")
 
-    async def reload_unit(self, unit_name: str) -> None:
+    async def reload_unit(self, unit_name: str, no_block: bool = False) -> None:
         await self._unit_action(unit_name, "Reload")
+
+    async def try_restart_unit(self, unit_name: str, no_block: bool = False) -> None:
+        await self._unit_action(unit_name, "TryRestart")
+
+    async def reload_or_restart_unit(self, unit_name: str, no_block: bool = False) -> None:
+        await self._unit_action(unit_name, "ReloadOrRestart")
+
+    async def start_units(self, unit_names: list[str], no_block: bool = False) -> None:
+        await asyncio.gather(*(self.start_unit(n) for n in unit_names))
+
+    async def stop_units(self, unit_names: list[str], no_block: bool = False) -> None:
+        await asyncio.gather(*(self.stop_unit(n) for n in unit_names))
+
+    async def restart_units(self, unit_names: list[str], no_block: bool = False) -> None:
+        await asyncio.gather(*(self.restart_unit(n) for n in unit_names))
 
     async def _enable_op(self, method_name: str, unit_name: str) -> EnableResult:
         method = getattr(self._manager, method_name)
@@ -194,6 +299,12 @@ class DBusBackend(AbstractBackend):
     async def daemon_reload(self) -> None:
         await asyncio.to_thread(self._manager.Reload)
 
+    async def reset_failed(self, unit_name: str | None = None) -> None:
+        if unit_name:
+            await asyncio.to_thread(self._manager.ResetFailedUnit, unit_name)
+        else:
+            await asyncio.to_thread(self._manager.ResetFailed)
+
     async def get_unit_file_state(self, unit_name: str) -> str:
         result = await asyncio.to_thread(self._manager.GetUnitFileState, unit_name)
         return str(get_native(result))
@@ -220,3 +331,6 @@ class DBusBackend(AbstractBackend):
             return state == "failed"
         except Exception:
             return False
+
+    async def close(self) -> None:
+        self._bus.disconnect()

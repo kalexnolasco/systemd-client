@@ -11,23 +11,29 @@ from systemd_client.cli._formatters import (
     format_journal_table,
     format_status_json,
     format_status_table,
+    format_unit_files_json,
+    format_unit_files_table,
     format_units_json,
     format_units_table,
 )
 from systemd_client.client import SystemdClient
-from systemd_client.enums import BackendType, JournalPriority
+from systemd_client.enums import BackendType, JournalPriority, SystemdScope
 from systemd_client.exceptions import SystemdClientError
 
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="systemd-client",
-        description="High-level CLI for systemd user services",
+        description="High-level CLI for systemd services",
     )
     parser.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     parser.add_argument(
         "--backend", choices=["auto", "subprocess", "dbus"],
         default="auto", help="Backend to use (default: auto)",
+    )
+    parser.add_argument(
+        "--scope", choices=["user", "system"],
+        default="user", help="Scope: user session or system-wide (default: user)",
     )
     parser.add_argument("--json", dest="use_json", action="store_true", help="Output as JSON")
     parser.add_argument("--no-color", action="store_true", help="Disable colored output")
@@ -39,14 +45,24 @@ def _build_parser() -> argparse.ArgumentParser:
     p_list.add_argument("--type", dest="unit_type", help="Filter by unit type")
     p_list.add_argument("--state", help="Filter by active state")
 
+    # list-unit-files
+    p_files = sub.add_parser("list-unit-files", help="List installed unit files")
+    p_files.add_argument("--type", dest="unit_type", help="Filter by unit type")
+    p_files.add_argument("--state", help="Filter by unit file state")
+
     # status
     p_status = sub.add_parser("status", help="Show unit status")
     p_status.add_argument("unit", help="Unit name")
 
-    # start/stop/restart/reload
-    for cmd in ("start", "stop", "restart", "reload"):
+    # cat
+    p_cat = sub.add_parser("cat", help="Show unit file content")
+    p_cat.add_argument("unit", help="Unit name")
+
+    # start/stop/restart/reload/try-restart/reload-or-restart
+    for cmd in ("start", "stop", "restart", "reload", "try-restart", "reload-or-restart"):
         p = sub.add_parser(cmd, help=f"{cmd.capitalize()} a unit")
-        p.add_argument("unit", help="Unit name")
+        p.add_argument("unit", nargs="+", help="Unit name(s)")
+        p.add_argument("--no-block", action="store_true", help="Do not wait for completion")
 
     # enable/disable/mask/unmask
     for cmd in ("enable", "disable", "mask", "unmask"):
@@ -55,6 +71,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # daemon-reload
     sub.add_parser("daemon-reload", help="Reload systemd daemon")
+
+    # reset-failed
+    p_reset = sub.add_parser("reset-failed", help="Reset failed state")
+    p_reset.add_argument("unit", nargs="?", help="Unit name (all if omitted)")
 
     # journal
     p_journal = sub.add_parser("journal", help="Query journal entries")
@@ -80,13 +100,17 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        client = SystemdClient(backend=BackendType(args.backend))
+        client = SystemdClient(
+            backend=BackendType(args.backend),
+            scope=SystemdScope(args.scope),
+        )
     except SystemdClientError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
     try:
-        return _dispatch(client, args)
+        with client:
+            return _dispatch(client, args)
     except SystemdClientError as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
@@ -104,6 +128,13 @@ def _dispatch(client: SystemdClient, args: argparse.Namespace) -> int:
         else:
             print(format_units_table(units, no_color=args.no_color))
 
+    elif cmd == "list-unit-files":
+        files = client.list_unit_files(unit_type=args.unit_type, state=args.state)
+        if args.use_json:
+            print(format_unit_files_json(files))
+        else:
+            print(format_unit_files_table(files, no_color=args.no_color))
+
     elif cmd == "status":
         status = client.status(args.unit)
         if args.use_json:
@@ -111,9 +142,28 @@ def _dispatch(client: SystemdClient, args: argparse.Namespace) -> int:
         else:
             print(format_status_table(status, no_color=args.no_color))
 
-    elif cmd in ("start", "stop", "restart", "reload"):
-        getattr(client, cmd)(args.unit)
-        print(f"{cmd.capitalize()}ed {args.unit}")
+    elif cmd == "cat":
+        content = client.cat(args.unit)
+        print(content, end="")
+
+    elif cmd in ("start", "stop", "restart", "reload", "try-restart", "reload-or-restart"):
+        # Normalize command name to method name
+        method_name = cmd.replace("-", "_")
+        units = args.unit  # list of unit names
+        no_block = args.no_block
+
+        if len(units) == 1:
+            getattr(client, method_name)(units[0], no_block=no_block)
+            print(f"{cmd.capitalize()}ed {units[0]}")
+        else:
+            # Batch: use batch methods for start/stop/restart
+            batch_method = f"{method_name}_units"
+            if hasattr(client, batch_method):
+                getattr(client, batch_method)(units, no_block=no_block)
+            else:
+                for u in units:
+                    getattr(client, method_name)(u, no_block=no_block)
+            print(f"{cmd.capitalize()}ed {', '.join(units)}")
 
     elif cmd in ("enable", "disable", "mask", "unmask"):
         result = getattr(client, cmd)(args.unit)
@@ -124,6 +174,13 @@ def _dispatch(client: SystemdClient, args: argparse.Namespace) -> int:
     elif cmd == "daemon-reload":
         client.daemon_reload()
         print("Daemon reloaded")
+
+    elif cmd == "reset-failed":
+        client.reset_failed(args.unit)
+        if args.unit:
+            print(f"Reset failed state for {args.unit}")
+        else:
+            print("Reset all failed states")
 
     elif cmd == "journal":
         priority = JournalPriority[args.priority.upper()] if args.priority else None

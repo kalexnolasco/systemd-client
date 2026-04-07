@@ -65,6 +65,16 @@ class UnitStatusModel(BaseModel):
     properties: dict[str, str] = {}
 
 
+class UnitFileInfoModel(BaseModel):
+    """Pydantic model for installed unit file information."""
+
+    model_config = ConfigDict(frozen=True)
+
+    name: str
+    state: UnitFileState
+    preset: str | None = None
+
+
 class JournalEntryModel(BaseModel):
     """Pydantic model for a journal log entry."""
 

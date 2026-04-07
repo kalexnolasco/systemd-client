@@ -104,6 +104,13 @@ class JournalPriority(StrEnum):
     DEBUG = "7"
 
 
+class SystemdScope(StrEnum):
+    """Systemd scope: user session or system-wide."""
+
+    USER = "user"
+    SYSTEM = "system"
+
+
 class BackendType(StrEnum):
     """Available backend types for systemd communication."""
 

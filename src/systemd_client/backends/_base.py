@@ -6,7 +6,7 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from systemd_client.models import EnableResult, UnitInfo, UnitStatus
+    from systemd_client.models import EnableResult, UnitFileInfo, UnitInfo, UnitStatus
 
 
 class AbstractBackend(ABC):
@@ -24,23 +24,55 @@ class AbstractBackend(ABC):
         ...
 
     @abstractmethod
+    async def list_unit_files(
+        self,
+        unit_type: str | None = None,
+        state: str | None = None,
+    ) -> list[UnitFileInfo]:
+        ...
+
+    @abstractmethod
     async def get_unit_status(self, unit_name: str) -> UnitStatus:
         ...
 
     @abstractmethod
-    async def start_unit(self, unit_name: str) -> None:
+    async def cat(self, unit_name: str) -> str:
         ...
 
     @abstractmethod
-    async def stop_unit(self, unit_name: str) -> None:
+    async def start_unit(self, unit_name: str, no_block: bool = False) -> None:
         ...
 
     @abstractmethod
-    async def restart_unit(self, unit_name: str) -> None:
+    async def stop_unit(self, unit_name: str, no_block: bool = False) -> None:
         ...
 
     @abstractmethod
-    async def reload_unit(self, unit_name: str) -> None:
+    async def restart_unit(self, unit_name: str, no_block: bool = False) -> None:
+        ...
+
+    @abstractmethod
+    async def reload_unit(self, unit_name: str, no_block: bool = False) -> None:
+        ...
+
+    @abstractmethod
+    async def try_restart_unit(self, unit_name: str, no_block: bool = False) -> None:
+        ...
+
+    @abstractmethod
+    async def reload_or_restart_unit(self, unit_name: str, no_block: bool = False) -> None:
+        ...
+
+    @abstractmethod
+    async def start_units(self, unit_names: list[str], no_block: bool = False) -> None:
+        ...
+
+    @abstractmethod
+    async def stop_units(self, unit_names: list[str], no_block: bool = False) -> None:
+        ...
+
+    @abstractmethod
+    async def restart_units(self, unit_names: list[str], no_block: bool = False) -> None:
         ...
 
     @abstractmethod
@@ -64,6 +96,10 @@ class AbstractBackend(ABC):
         ...
 
     @abstractmethod
+    async def reset_failed(self, unit_name: str | None = None) -> None:
+        ...
+
+    @abstractmethod
     async def get_unit_file_state(self, unit_name: str) -> str:
         ...
 
@@ -78,3 +114,6 @@ class AbstractBackend(ABC):
     @abstractmethod
     async def is_failed(self, unit_name: str) -> bool:
         ...
+
+    async def close(self) -> None:  # noqa: B027
+        """Release backend resources. Override in subclasses that hold connections."""

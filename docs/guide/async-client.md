@@ -9,10 +9,11 @@ If you're building an async application (FastAPI, aiohttp, or just plain `asynci
 ```python hl_lines="3"
 from systemd_client import AsyncSystemdClient, BackendType
 
-client = AsyncSystemdClient()  # (1)!
+async with AsyncSystemdClient() as client:  # (1)!
+    units = await client.list_units()
 ```
 
-1. Same backend options as the sync client: `BackendType.AUTO` (default), `BackendType.SUBPROCESS`, or `BackendType.DBUS`.
+1. Use `async with` for proper resource cleanup. Same backend options as the sync client: `BackendType.AUTO` (default), `BackendType.SUBPROCESS`, or `BackendType.DBUS`. Add `scope=SystemdScope.SYSTEM` for system services.
 
 ## Basic Usage
 

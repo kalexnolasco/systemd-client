@@ -6,50 +6,116 @@ from typing import TYPE_CHECKING
 
 from systemd_client._sync import run_sync
 from systemd_client.backends import AbstractBackend, get_backend
-from systemd_client.enums import BackendType, JournalPriority
+from systemd_client.enums import BackendType, JournalPriority, SystemdScope
 from systemd_client.journal._query import JournalQuery
 from systemd_client.journal._reader import AsyncJournalReader, JournalReader
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator, Iterator
+    from types import TracebackType
 
-    from systemd_client.models import EnableResult, JournalEntry, UnitInfo, UnitStatus
+    from systemd_client.models import (
+        EnableResult,
+        JournalEntry,
+        UnitFileInfo,
+        UnitInfo,
+        UnitStatus,
+    )
 
 
 class AsyncSystemdClient:
-    """Async-first systemd client for user services."""
+    """Async-first systemd client for user or system services."""
 
-    def __init__(self, backend: BackendType = BackendType.AUTO) -> None:
-        self._backend: AbstractBackend = get_backend(backend)
-        self._journal = AsyncJournalReader()
+    def __init__(
+        self,
+        backend: BackendType = BackendType.AUTO,
+        scope: SystemdScope = SystemdScope.USER,
+    ) -> None:
+        self._scope = scope
+        self._backend_type = backend
+        self._backend: AbstractBackend = get_backend(backend, scope=scope)
+        self._journal = AsyncJournalReader(scope=scope)
+
+    async def __aenter__(self) -> AsyncSystemdClient:
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        await self.close()
+
+    async def close(self) -> None:
+        """Release backend resources."""
+        await self._backend.close()
+
+    def __repr__(self) -> str:
+        return (
+            f"{self.__class__.__name__}("
+            f"backend={self._backend_type!r}, scope={self._scope!r})"
+        )
 
     async def list_units(
         self,
         unit_type: str | None = None,
         state: str | None = None,
     ) -> list[UnitInfo]:
-        """List systemd user units."""
+        """List systemd units."""
         return await self._backend.list_units(unit_type=unit_type, state=state)
+
+    async def list_unit_files(
+        self,
+        unit_type: str | None = None,
+        state: str | None = None,
+    ) -> list[UnitFileInfo]:
+        """List installed unit files."""
+        return await self._backend.list_unit_files(unit_type=unit_type, state=state)
 
     async def status(self, unit_name: str) -> UnitStatus:
         """Get detailed status of a unit."""
         return await self._backend.get_unit_status(unit_name)
 
-    async def start(self, unit_name: str) -> None:
+    async def cat(self, unit_name: str) -> str:
+        """Show the content of a unit file."""
+        return await self._backend.cat(unit_name)
+
+    async def start(self, unit_name: str, no_block: bool = False) -> None:
         """Start a unit."""
-        await self._backend.start_unit(unit_name)
+        await self._backend.start_unit(unit_name, no_block=no_block)
 
-    async def stop(self, unit_name: str) -> None:
+    async def stop(self, unit_name: str, no_block: bool = False) -> None:
         """Stop a unit."""
-        await self._backend.stop_unit(unit_name)
+        await self._backend.stop_unit(unit_name, no_block=no_block)
 
-    async def restart(self, unit_name: str) -> None:
+    async def restart(self, unit_name: str, no_block: bool = False) -> None:
         """Restart a unit."""
-        await self._backend.restart_unit(unit_name)
+        await self._backend.restart_unit(unit_name, no_block=no_block)
 
-    async def reload(self, unit_name: str) -> None:
+    async def reload(self, unit_name: str, no_block: bool = False) -> None:
         """Reload a unit."""
-        await self._backend.reload_unit(unit_name)
+        await self._backend.reload_unit(unit_name, no_block=no_block)
+
+    async def try_restart(self, unit_name: str, no_block: bool = False) -> None:
+        """Restart a unit if it is active, otherwise do nothing."""
+        await self._backend.try_restart_unit(unit_name, no_block=no_block)
+
+    async def reload_or_restart(self, unit_name: str, no_block: bool = False) -> None:
+        """Reload a unit if it supports it, otherwise restart."""
+        await self._backend.reload_or_restart_unit(unit_name, no_block=no_block)
+
+    async def start_units(self, unit_names: list[str], no_block: bool = False) -> None:
+        """Start multiple units in a single operation."""
+        await self._backend.start_units(unit_names, no_block=no_block)
+
+    async def stop_units(self, unit_names: list[str], no_block: bool = False) -> None:
+        """Stop multiple units in a single operation."""
+        await self._backend.stop_units(unit_names, no_block=no_block)
+
+    async def restart_units(self, unit_names: list[str], no_block: bool = False) -> None:
+        """Restart multiple units in a single operation."""
+        await self._backend.restart_units(unit_names, no_block=no_block)
 
     async def enable(self, unit_name: str) -> EnableResult:
         """Enable a unit."""
@@ -83,6 +149,10 @@ class AsyncSystemdClient:
         """Reload the systemd daemon configuration."""
         await self._backend.daemon_reload()
 
+    async def reset_failed(self, unit_name: str | None = None) -> None:
+        """Reset the failed state of a unit, or all units if no name given."""
+        await self._backend.reset_failed(unit_name)
+
     async def journal(
         self,
         unit: str | None = None,
@@ -114,69 +184,127 @@ class AsyncSystemdClient:
 class SystemdClient:
     """Synchronous systemd client wrapping AsyncSystemdClient."""
 
-    def __init__(self, backend: BackendType = BackendType.AUTO) -> None:
-        self._async_client = AsyncSystemdClient(backend=backend)
-        self._journal = JournalReader()
+    def __init__(
+        self,
+        backend: BackendType = BackendType.AUTO,
+        scope: SystemdScope = SystemdScope.USER,
+    ) -> None:
+        self._async_client = AsyncSystemdClient(backend=backend, scope=scope)
+        self._journal = JournalReader(scope=scope)
+
+    def __enter__(self) -> SystemdClient:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        self.close()
+
+    def close(self) -> None:
+        """Release backend resources."""
+        run_sync(self._async_client.close())
+
+    def __repr__(self) -> str:
+        return repr(self._async_client).replace("AsyncSystemdClient", "SystemdClient")
 
     def list_units(
         self,
         unit_type: str | None = None,
         state: str | None = None,
     ) -> list[UnitInfo]:
-        """List systemd user units."""
-        return run_sync(self._async_client.list_units(unit_type=unit_type, state=state))  # type: ignore[return-value]
+        """List systemd units."""
+        return run_sync(self._async_client.list_units(unit_type=unit_type, state=state))
+
+    def list_unit_files(
+        self,
+        unit_type: str | None = None,
+        state: str | None = None,
+    ) -> list[UnitFileInfo]:
+        """List installed unit files."""
+        return run_sync(self._async_client.list_unit_files(unit_type=unit_type, state=state))
 
     def status(self, unit_name: str) -> UnitStatus:
         """Get detailed status of a unit."""
-        return run_sync(self._async_client.status(unit_name))  # type: ignore[return-value]
+        return run_sync(self._async_client.status(unit_name))
 
-    def start(self, unit_name: str) -> None:
+    def cat(self, unit_name: str) -> str:
+        """Show the content of a unit file."""
+        return run_sync(self._async_client.cat(unit_name))
+
+    def start(self, unit_name: str, no_block: bool = False) -> None:
         """Start a unit."""
-        run_sync(self._async_client.start(unit_name))
+        run_sync(self._async_client.start(unit_name, no_block=no_block))
 
-    def stop(self, unit_name: str) -> None:
+    def stop(self, unit_name: str, no_block: bool = False) -> None:
         """Stop a unit."""
-        run_sync(self._async_client.stop(unit_name))
+        run_sync(self._async_client.stop(unit_name, no_block=no_block))
 
-    def restart(self, unit_name: str) -> None:
+    def restart(self, unit_name: str, no_block: bool = False) -> None:
         """Restart a unit."""
-        run_sync(self._async_client.restart(unit_name))
+        run_sync(self._async_client.restart(unit_name, no_block=no_block))
 
-    def reload(self, unit_name: str) -> None:
+    def reload(self, unit_name: str, no_block: bool = False) -> None:
         """Reload a unit."""
-        run_sync(self._async_client.reload(unit_name))
+        run_sync(self._async_client.reload(unit_name, no_block=no_block))
+
+    def try_restart(self, unit_name: str, no_block: bool = False) -> None:
+        """Restart a unit if it is active, otherwise do nothing."""
+        run_sync(self._async_client.try_restart(unit_name, no_block=no_block))
+
+    def reload_or_restart(self, unit_name: str, no_block: bool = False) -> None:
+        """Reload a unit if it supports it, otherwise restart."""
+        run_sync(self._async_client.reload_or_restart(unit_name, no_block=no_block))
+
+    def start_units(self, unit_names: list[str], no_block: bool = False) -> None:
+        """Start multiple units in a single operation."""
+        run_sync(self._async_client.start_units(unit_names, no_block=no_block))
+
+    def stop_units(self, unit_names: list[str], no_block: bool = False) -> None:
+        """Stop multiple units in a single operation."""
+        run_sync(self._async_client.stop_units(unit_names, no_block=no_block))
+
+    def restart_units(self, unit_names: list[str], no_block: bool = False) -> None:
+        """Restart multiple units in a single operation."""
+        run_sync(self._async_client.restart_units(unit_names, no_block=no_block))
 
     def enable(self, unit_name: str) -> EnableResult:
         """Enable a unit."""
-        return run_sync(self._async_client.enable(unit_name))  # type: ignore[return-value]
+        return run_sync(self._async_client.enable(unit_name))
 
     def disable(self, unit_name: str) -> EnableResult:
         """Disable a unit."""
-        return run_sync(self._async_client.disable(unit_name))  # type: ignore[return-value]
+        return run_sync(self._async_client.disable(unit_name))
 
     def mask(self, unit_name: str) -> EnableResult:
         """Mask a unit."""
-        return run_sync(self._async_client.mask(unit_name))  # type: ignore[return-value]
+        return run_sync(self._async_client.mask(unit_name))
 
     def unmask(self, unit_name: str) -> EnableResult:
         """Unmask a unit."""
-        return run_sync(self._async_client.unmask(unit_name))  # type: ignore[return-value]
+        return run_sync(self._async_client.unmask(unit_name))
 
     def is_active(self, unit_name: str) -> bool:
         """Check if a unit is active."""
-        return run_sync(self._async_client.is_active(unit_name))  # type: ignore[return-value]
+        return run_sync(self._async_client.is_active(unit_name))
 
     def is_enabled(self, unit_name: str) -> bool:
         """Check if a unit is enabled."""
-        return run_sync(self._async_client.is_enabled(unit_name))  # type: ignore[return-value]
+        return run_sync(self._async_client.is_enabled(unit_name))
 
     def is_failed(self, unit_name: str) -> bool:
         """Check if a unit is in failed state."""
-        return run_sync(self._async_client.is_failed(unit_name))  # type: ignore[return-value]
+        return run_sync(self._async_client.is_failed(unit_name))
 
     def daemon_reload(self) -> None:
         """Reload the systemd daemon configuration."""
         run_sync(self._async_client.daemon_reload())
+
+    def reset_failed(self, unit_name: str | None = None) -> None:
+        """Reset the failed state of a unit, or all units if no name given."""
+        run_sync(self._async_client.reset_failed(unit_name))
 
     def journal(
         self,

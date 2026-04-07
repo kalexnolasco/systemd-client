@@ -71,6 +71,15 @@ class JournalEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class UnitFileInfo:
+    """Information about an installed unit file (from list-unit-files)."""
+
+    name: str
+    state: UnitFileState
+    preset: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class EnableResult:
     """Result of enable/disable/mask/unmask operations."""
 

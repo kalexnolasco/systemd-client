@@ -6,18 +6,20 @@
 [![Tests](https://img.shields.io/github/actions/workflow/status/kalexnolasco/systemd-client/tests.yml?style=flat-square&label=tests)](https://github.com/kalexnolasco/systemd-client/actions)
 [![Docs](https://img.shields.io/badge/docs-kalexnolasco.github.io-blue?style=flat-square)](https://kalexnolasco.github.io/systemd-client/)
 
-High-level Python client for systemd user services. Async-first with sync wrappers, subprocess + optional D-Bus backends, CLI included.
+High-level Python client for systemd services (user + system scope). Async-first with sync wrappers, subprocess + optional D-Bus backends, CLI included.
 
 > **Documentation: [kalexnolasco.github.io/systemd-client](https://kalexnolasco.github.io/systemd-client/)**
 
 ## Features
 
 - **Async + Sync API** — `AsyncSystemdClient` and `SystemdClient` with identical interfaces
-- **Unit management** — list, status, start, stop, restart, reload, enable, disable, mask, unmask
+- **User + System scope** — manage user session or system-wide services
+- **Unit management** — list, status, cat, start, stop, restart, reload, try-restart, reload-or-restart, enable, disable, mask, unmask, reset-failed, batch ops
 - **Journal reader** — query with filters (unit, priority, time range, grep) and real-time follow
 - **Pluggable backends** — subprocess (default, zero deps) or D-Bus via dasbus
+- **Context managers** — `with SystemdClient()` / `async with AsyncSystemdClient()` for cleanup
 - **Typed models** — frozen dataclasses with full annotations, optional Pydantic support
-- **CLI** — `systemd-client` command with table and JSON output
+- **CLI** — `systemd-client` command with table/JSON output, scope, batch, and no-block support
 - **Modern Python** — 3.11+, StrEnum, slots, PEP 561 typed
 
 ## Install
@@ -41,25 +43,23 @@ pip install systemd-client[all]       # Everything
 ```python
 from systemd_client import SystemdClient
 
-client = SystemdClient()
+with SystemdClient() as client:
+    # List services
+    for unit in client.list_units(unit_type="service"):
+        print(f"{unit.name}: {unit.active_state} ({unit.sub_state})")
 
-# List services
-for unit in client.list_units(unit_type="service"):
-    print(f"{unit.name}: {unit.active_state} ({unit.sub_state})")
+    # Manage units
+    client.restart("my-app.service")
+    status = client.status("my-app.service")
+    print(f"PID: {status.main_pid}, State: {status.active_state}")
 
-# Manage units
-client.restart("my-app.service")
-status = client.status("my-app.service")
-print(f"PID: {status.main_pid}, State: {status.active_state}")
+    # Batch operations
+    client.restart_units(["app.service", "worker.service"])
 
-# Journal
-entries = client.journal("my-app.service", lines=50, since="1h ago")
-for entry in entries:
-    print(f"[{entry.priority}] {entry.message}")
-
-# Follow journal in real-time
-for entry in client.journal_follow("my-app.service"):
-    print(entry.message)
+    # Journal
+    entries = client.journal("my-app.service", lines=50, since="1h ago")
+    for entry in entries:
+        print(f"[{entry.priority}] {entry.message}")
 ```
 
 ### Async
@@ -69,14 +69,23 @@ import asyncio
 from systemd_client import AsyncSystemdClient
 
 async def main():
-    client = AsyncSystemdClient()
-    units = await client.list_units(unit_type="service")
-    await client.restart("my-app.service")
+    async with AsyncSystemdClient() as client:
+        units = await client.list_units(unit_type="service")
+        await client.restart("my-app.service")
 
-    async for entry in client.journal_follow("my-app.service"):
-        print(entry.message)
+        async for entry in client.journal_follow("my-app.service"):
+            print(entry.message)
 
 asyncio.run(main())
+```
+
+### System Scope
+
+```python
+from systemd_client import SystemdClient, SystemdScope
+
+with SystemdClient(scope=SystemdScope.SYSTEM) as client:
+    units = client.list_units(unit_type="service")
 ```
 
 ## CLI
@@ -84,10 +93,17 @@ asyncio.run(main())
 ```bash
 systemd-client list                                     # List all units
 systemd-client list --type service                      # List services only
+systemd-client list-unit-files --state enabled          # List installed unit files
 systemd-client status my-app.service                    # Unit status
+systemd-client cat my-app.service                       # Show unit file content
 systemd-client restart my-app.service                   # Restart
+systemd-client start a.service b.service                # Batch start
+systemd-client restart --no-block my-app.service        # Non-blocking restart
+systemd-client try-restart my-app.service               # Restart only if active
+systemd-client reset-failed my-app.service              # Reset failed state
 systemd-client journal -u my-app.service -n 50          # Last 50 log lines
 systemd-client journal -u my-app.service --follow       # Follow logs
+systemd-client --scope system list                      # System scope
 systemd-client --json list                              # JSON output
 ```
 
@@ -100,23 +116,30 @@ Your Application
     |       |
     +-- AsyncSystemdClient (async)
             |
-            +-- SubprocessBackend ---- systemctl --user ----> systemd
+            +-- SubprocessBackend ---- systemctl --user/--system ----> systemd
             |     (default)
-            +-- DBusBackend ---------- D-Bus session bus ---> systemd
+            +-- DBusBackend ---------- D-Bus session/system bus ----> systemd
             |     (optional, dasbus)
-            +-- AsyncJournalReader --- journalctl --user ---> journal
+            +-- AsyncJournalReader --- journalctl --output=json -----> journal
 ```
 
 ## API Reference
 
 | Method | Return | Description |
 |--------|--------|-------------|
-| `list_units(unit_type?, state?)` | `list[UnitInfo]` | List user units |
+| `list_units(unit_type?, state?)` | `list[UnitInfo]` | List loaded units |
+| `list_unit_files(unit_type?, state?)` | `list[UnitFileInfo]` | List installed unit files |
 | `status(unit)` | `UnitStatus` | Detailed status |
-| `start(unit)` | `None` | Start unit |
-| `stop(unit)` | `None` | Stop unit |
-| `restart(unit)` | `None` | Restart unit |
-| `reload(unit)` | `None` | Reload unit |
+| `cat(unit)` | `str` | Unit file content |
+| `start(unit, no_block?)` | `None` | Start unit |
+| `stop(unit, no_block?)` | `None` | Stop unit |
+| `restart(unit, no_block?)` | `None` | Restart unit |
+| `reload(unit, no_block?)` | `None` | Reload unit |
+| `try_restart(unit, no_block?)` | `None` | Restart if active |
+| `reload_or_restart(unit, no_block?)` | `None` | Reload or restart |
+| `start_units(units, no_block?)` | `None` | Batch start |
+| `stop_units(units, no_block?)` | `None` | Batch stop |
+| `restart_units(units, no_block?)` | `None` | Batch restart |
 | `enable(unit)` | `EnableResult` | Enable unit |
 | `disable(unit)` | `EnableResult` | Disable unit |
 | `mask(unit)` / `unmask(unit)` | `EnableResult` | Mask/unmask |
@@ -124,8 +147,9 @@ Your Application
 | `is_enabled(unit)` | `bool` | Check enabled |
 | `is_failed(unit)` | `bool` | Check failed |
 | `daemon_reload()` | `None` | Reload daemon |
-| `journal(unit?, lines?, since?, until?, priority?, grep?)` | `list[JournalEntry]` | Query journal |
-| `journal_follow(unit?, lines?, priority?)` | `Iterator[JournalEntry]` | Follow journal |
+| `reset_failed(unit?)` | `None` | Reset failed state |
+| `journal(unit?, lines?, ...)` | `list[JournalEntry]` | Query journal |
+| `journal_follow(unit?, lines?, ...)` | `Iterator[JournalEntry]` | Follow journal |
 
 ## Examples
 

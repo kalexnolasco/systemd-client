@@ -7,13 +7,13 @@
 [![License](https://img.shields.io/pypi/l/systemd-client?style=flat-square)](https://github.com/kalexnolasco/systemd-client/blob/main/LICENSE)
 [![Tests](https://img.shields.io/github/actions/workflow/status/kalexnolasco/systemd-client/tests.yml?style=flat-square&label=tests)](https://github.com/kalexnolasco/systemd-client/actions)
 
-*A modern, Pythonic client for managing systemd user services.*
+*A modern, Pythonic client for managing systemd services.*
 
 </div>
 
 ---
 
-**systemd-client** is a high-level Python library for managing **systemd user services**. It gives you a clean, typed API instead of shelling out to `systemctl` and parsing text output by hand.
+**systemd-client** is a high-level Python library for managing **systemd services** -- both user and system scope. It gives you a clean, typed API instead of shelling out to `systemctl` and parsing text output by hand.
 
 It is designed to be **easy to use**, **async-first** (with sync wrappers that feel just as natural), and **fully typed** so your editor and type checker can help you every step of the way.
 
@@ -21,20 +21,23 @@ The key ideas are:
 
 - **Pythonic**: Frozen dataclasses, StrEnums, and full type annotations -- no string parsing.
 - **Async-first**: Built on `asyncio` from the ground up. Use `AsyncSystemdClient` directly, or use the synchronous `SystemdClient` wrapper -- same API, same types.
-- **Zero required dependencies**: The default subprocess backend calls `systemctl --user` under the hood and needs nothing beyond the standard library.
+- **Zero required dependencies**: The default subprocess backend calls `systemctl` under the hood and needs nothing beyond the standard library.
 - **Pluggable**: Swap in the D-Bus backend for direct communication when you need it.
+- **User + System scope**: Manage user session services (`--user`) or system-wide services (`--system`).
 
 ---
 
 ## Features
 
 - **Async + Sync API** - `AsyncSystemdClient` for `async`/`await` code, `SystemdClient` as a synchronous wrapper. Both share the same interface and return the same typed models.
+- **User + System Scope** - Manage user session services or system-wide services with `SystemdScope.USER` / `SystemdScope.SYSTEM`.
 - **Pluggable Backends** - The default subprocess backend has zero dependencies. Install `systemd-client[dbus]` for a D-Bus backend via `dasbus` when you need direct communication.
 - **Journal Reader** - Query and follow journal entries as structured `JournalEntry` objects. Filter by unit, priority, time range, or grep pattern.
-- **Full Unit Management** - Start, stop, restart, reload, enable, disable, mask, unmask, status, `daemon-reload` -- everything `systemctl --user` can do.
-- **Typed Models** - Frozen dataclasses with slots for `UnitInfo`, `UnitStatus`, `JournalEntry`, and `EnableResult`. StrEnums for every state and priority level.
+- **Full Unit Management** - Start, stop, restart, reload, try-restart, reload-or-restart, enable, disable, mask, unmask, status, cat, reset-failed, daemon-reload, and batch operations.
+- **Typed Models** - Frozen dataclasses with slots for `UnitInfo`, `UnitStatus`, `UnitFileInfo`, `JournalEntry`, and `EnableResult`. StrEnums for every state and priority level.
+- **Context Managers** - Both clients support `with` / `async with` for proper resource cleanup.
 - **Modern Python** - Requires Python 3.11+. Uses `StrEnum`, `slots=True` dataclasses, full PEP 561 type annotations.
-- **CLI Included** - The `systemd-client` command gives you colored table output and a `--json` mode for scripting.
+- **CLI Included** - The `systemd-client` command gives you colored table output, `--json` mode, `--scope` selection, and batch operations.
 
 ---
 
@@ -71,19 +74,19 @@ Create a file `main.py` with:
 ```python hl_lines="1 3 6 10"
 from systemd_client import SystemdClient  # (1)!
 
-client = SystemdClient()  # (2)!
+with SystemdClient() as client:  # (2)!
 
-# List all running services in one call
-for unit in client.list_units(unit_type="service"):  # (3)!
-    print(f"{unit.name}: {unit.active_state}")
+    # List all running services in one call
+    for unit in client.list_units(unit_type="service"):  # (3)!
+        print(f"{unit.name}: {unit.active_state}")
 
-# Get detailed, typed status for a single unit
-status = client.status("my-app.service")  # (4)!
-print(f"PID {status.main_pid} running since {status.active_enter_timestamp}")
+    # Get detailed, typed status for a single unit
+    status = client.status("my-app.service")  # (4)!
+    print(f"PID {status.main_pid} running since {status.active_enter_timestamp}")
 ```
 
 1. Import `SystemdClient` -- the synchronous client. For async code, use `AsyncSystemdClient` instead.
-2. Create a client instance. The default backend is `auto`, which picks subprocess (or D-Bus if available).
+2. Use a context manager for proper resource cleanup. You can also create the client without `with`.
 3. `list_units()` returns a list of `UnitInfo` dataclasses. Filter by `unit_type` or `state`.
 4. `status()` returns a `UnitStatus` dataclass with typed fields like `main_pid`, `active_state`, and timestamps.
 
@@ -113,18 +116,18 @@ import asyncio
 from systemd_client import AsyncSystemdClient
 
 async def main():
-    client = AsyncSystemdClient()  # (1)!
+    async with AsyncSystemdClient() as client:  # (1)!
 
-    # Start a service and verify it is running
-    await client.start("my-app.service")  # (2)!
-    is_running = await client.is_active("my-app.service")
-    print(f"Running: {is_running}")
+        # Start a service and verify it is running
+        await client.start("my-app.service")  # (2)!
+        is_running = await client.is_active("my-app.service")
+        print(f"Running: {is_running}")
 
 asyncio.run(main())
 ```
 
-1. Same API shape as `SystemdClient`, but every method is a coroutine.
-2. `start()`, `stop()`, `restart()`, `reload()` -- all the operations you expect, as awaitable calls.
+1. Use `async with` for automatic resource cleanup. Same API shape as `SystemdClient`, but every method is a coroutine.
+2. `start()`, `stop()`, `restart()`, `reload()`, `try_restart()`, `reload_or_restart()` -- all the operations you expect, as awaitable calls.
 
 ### Check it
 
@@ -170,9 +173,9 @@ $ python main.py
 
 ## Requirements
 
-**systemd-client** requires **Python 3.11+** and a Linux system with a running systemd user session.
+**systemd-client** requires **Python 3.11+** and a Linux system with systemd.
 
-The base install has **zero Python dependencies** -- it calls `systemctl --user` and `journalctl --user` via subprocess.
+The base install has **zero Python dependencies** -- it calls `systemctl` and `journalctl` via subprocess.
 
 Optional dependencies:
 
@@ -195,16 +198,16 @@ graph TD
     end
 
     subgraph BACKENDS["Backends"]
-        SUB["SubprocessBackend<br/><small>systemctl --user</small>"]
+        SUB["SubprocessBackend<br/><small>systemctl --user/--system</small>"]
         DBUS["DBusBackend<br/><small>dasbus · optional</small>"]
     end
 
     subgraph JOURNAL["Journal"]
-        JR["AsyncJournalReader<br/><small>journalctl --user --output=json</small>"]
+        JR["AsyncJournalReader<br/><small>journalctl --output=json</small>"]
     end
 
-    subgraph SYSTEMD["systemd user session"]
-        UNITS[("User Units<br/><small>services, timers, sockets</small>")]
+    subgraph SYSTEMD["systemd (user or system)"]
+        UNITS[("Units<br/><small>services, timers, sockets</small>")]
         JRNL[("Journal<br/><small>log entries</small>")]
     end
 

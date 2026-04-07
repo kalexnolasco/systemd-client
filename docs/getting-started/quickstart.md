@@ -23,9 +23,12 @@ client = SystemdClient()  # (2)!
    dependencies required.
 
 !!! tip
-    The `SystemdClient` is lightweight and cheap to create. You can create it
-    once and reuse it, or create a new one each time -- there's no connection
-    to manage.
+    You can also use `SystemdClient` as a context manager:
+    ```python
+    with SystemdClient() as client:
+        units = client.list_units()
+    ```
+    For **system services** (instead of user), pass `scope=SystemdScope.SYSTEM`.
 
 ## 2. List your services
 
@@ -328,22 +331,20 @@ Python at all for common tasks:
 
 ```console
 $ systemd-client list --type service
-```
-
-```console
+$ systemd-client list-unit-files --state enabled
 $ systemd-client status my-app.service
-```
-
-```console
+$ systemd-client cat my-app.service
 $ systemd-client restart my-app.service
-```
-
-```console
+$ systemd-client start a.service b.service c.service
 $ systemd-client journal -u my-app.service -n 50
+$ systemd-client journal -u my-app.service --follow
 ```
 
+For system services, add `--scope system`:
+
 ```console
-$ systemd-client journal -u my-app.service --follow
+$ systemd-client --scope system list --type service
+$ systemd-client --scope system restart nginx.service
 ```
 
 And if you want machine-readable output, add `--json`:

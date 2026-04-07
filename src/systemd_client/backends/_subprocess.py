@@ -1,4 +1,4 @@
-"""Subprocess backend: communicates with systemd via systemctl --user."""
+"""Subprocess backend: communicates with systemd via systemctl --user/--system."""
 
 from __future__ import annotations
 
@@ -7,21 +7,34 @@ import json
 from datetime import UTC, datetime
 
 from systemd_client.backends._base import AbstractBackend
-from systemd_client.enums import ActiveState, LoadState, SubState, UnitFileState
+from systemd_client.enums import (
+    ActiveState,
+    LoadState,
+    SubState,
+    SystemdScope,
+    UnitFileState,
+)
 from systemd_client.exceptions import (
     SubprocessError,
     UnitNotFoundError,
     UnitOperationError,
 )
-from systemd_client.models import EnableResult, UnitInfo, UnitStatus
+from systemd_client.models import EnableResult, UnitFileInfo, UnitInfo, UnitStatus
 
 
 class SubprocessBackend(AbstractBackend):
     """Backend that uses systemctl/journalctl subprocess calls."""
 
+    def __init__(self, scope: SystemdScope = SystemdScope.USER) -> None:
+        self._scope = scope
+
+    @property
+    def _scope_flag(self) -> str:
+        return f"--{self._scope.value}"
+
     async def _run_systemctl(self, *args: str, check: bool = True) -> tuple[str, str, int]:
-        """Run a systemctl --user command and return (stdout, stderr, returncode)."""
-        cmd = ["systemctl", "--user", *args]
+        """Run a systemctl command and return (stdout, stderr, returncode)."""
+        cmd = ["systemctl", self._scope_flag, *args]
         proc = await asyncio.create_subprocess_exec(
             *cmd,
             stdout=asyncio.subprocess.PIPE,
@@ -66,6 +79,32 @@ class SubprocessBackend(AbstractBackend):
                 continue
         return units
 
+    async def list_unit_files(
+        self,
+        unit_type: str | None = None,
+        state: str | None = None,
+    ) -> list[UnitFileInfo]:
+        args = ["list-unit-files", "--output=json", "--no-pager"]
+        if unit_type:
+            args.append(f"--type={unit_type}")
+        if state:
+            args.append(f"--state={state}")
+
+        stdout, _, _ = await self._run_systemctl(*args)
+        data = json.loads(stdout) if stdout.strip() else []
+
+        files: list[UnitFileInfo] = []
+        for entry in data:
+            try:
+                files.append(UnitFileInfo(
+                    name=entry.get("unit_file", entry.get("unit", "")),
+                    state=UnitFileState(entry.get("state", "disabled")),
+                    preset=entry.get("preset") or None,
+                ))
+            except ValueError:
+                continue
+        return files
+
     async def get_unit_status(self, unit_name: str) -> UnitStatus:
         try:
             stdout, _, _ = await self._run_systemctl("show", unit_name, "--no-pager")
@@ -104,13 +143,16 @@ class SubprocessBackend(AbstractBackend):
                     pass
             return None
 
-        def _safe_int(key: str) -> int | None:
+        def _safe_int(key: str, *, zero_is_none: bool = True) -> int | None:
+            """Parse an integer property. zero_is_none=True for PIDs, False for exit codes."""
             raw = props.get(key, "")
-            if not raw or raw == "0":
+            if not raw:
                 return None
             try:
                 val = int(raw)
-                return val if val != 0 else None
+                if zero_is_none and val == 0:
+                    return None
+                return val
             except ValueError:
                 return None
 
@@ -144,36 +186,95 @@ class SubprocessBackend(AbstractBackend):
             inactive_enter_timestamp=_parse_timestamp("InactiveEnterTimestamp"),
             inactive_exit_timestamp=_parse_timestamp("InactiveExitTimestamp"),
             main_pid=_safe_int("MainPID"),
-            exec_main_status=_safe_int("ExecMainStatus"),
+            exec_main_status=_safe_int("ExecMainStatus", zero_is_none=False),
             result=props.get("Result") or None,
             triggered_by=triggered_by,
             documentation=documentation,
             properties=props,
         )
 
-    async def start_unit(self, unit_name: str) -> None:
+    async def cat(self, unit_name: str) -> str:
         try:
-            await self._run_systemctl("start", unit_name)
+            stdout, _, _ = await self._run_systemctl("cat", unit_name)
         except SubprocessError as exc:
-            raise UnitOperationError(unit_name, "start", exc.stderr) from exc
+            if "not found" in exc.stderr.lower() or "No files found" in exc.stderr:
+                raise UnitNotFoundError(unit_name) from exc
+            raise
+        return stdout
 
-    async def stop_unit(self, unit_name: str) -> None:
+    async def _unit_action(
+        self, action: str, unit_name: str, no_block: bool = False,
+    ) -> None:
+        args = [action]
+        if no_block:
+            args.append("--no-block")
+        args.append(unit_name)
         try:
-            await self._run_systemctl("stop", unit_name)
+            await self._run_systemctl(*args)
         except SubprocessError as exc:
-            raise UnitOperationError(unit_name, "stop", exc.stderr) from exc
+            raise UnitOperationError(unit_name, action, exc.stderr) from exc
 
-    async def restart_unit(self, unit_name: str) -> None:
-        try:
-            await self._run_systemctl("restart", unit_name)
-        except SubprocessError as exc:
-            raise UnitOperationError(unit_name, "restart", exc.stderr) from exc
+    async def start_unit(self, unit_name: str, no_block: bool = False) -> None:
+        await self._unit_action("start", unit_name, no_block)
 
-    async def reload_unit(self, unit_name: str) -> None:
+    async def stop_unit(self, unit_name: str, no_block: bool = False) -> None:
+        await self._unit_action("stop", unit_name, no_block)
+
+    async def restart_unit(self, unit_name: str, no_block: bool = False) -> None:
+        await self._unit_action("restart", unit_name, no_block)
+
+    async def reload_unit(self, unit_name: str, no_block: bool = False) -> None:
+        await self._unit_action("reload", unit_name, no_block)
+
+    async def try_restart_unit(self, unit_name: str, no_block: bool = False) -> None:
+        await self._unit_action("try-restart", unit_name, no_block)
+
+    async def reload_or_restart_unit(self, unit_name: str, no_block: bool = False) -> None:
+        await self._unit_action("reload-or-restart", unit_name, no_block)
+
+    async def _batch_action(
+        self, action: str, unit_names: list[str], no_block: bool = False,
+    ) -> None:
+        args = [action]
+        if no_block:
+            args.append("--no-block")
+        args.extend(unit_names)
         try:
-            await self._run_systemctl("reload", unit_name)
+            await self._run_systemctl(*args)
         except SubprocessError as exc:
-            raise UnitOperationError(unit_name, "reload", exc.stderr) from exc
+            raise UnitOperationError(
+                ", ".join(unit_names), action, exc.stderr,
+            ) from exc
+
+    async def start_units(self, unit_names: list[str], no_block: bool = False) -> None:
+        await self._batch_action("start", unit_names, no_block)
+
+    async def stop_units(self, unit_names: list[str], no_block: bool = False) -> None:
+        await self._batch_action("stop", unit_names, no_block)
+
+    async def restart_units(self, unit_names: list[str], no_block: bool = False) -> None:
+        await self._batch_action("restart", unit_names, no_block)
+
+    async def _enable_disable_op(self, operation: str, unit_name: str) -> EnableResult:
+        try:
+            stdout, _, _ = await self._run_systemctl(operation, unit_name)
+        except SubprocessError as exc:
+            raise UnitOperationError(unit_name, operation, exc.stderr) from exc
+
+        changes: list[tuple[str, str, str]] = []
+        for line in stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            parts = line.split()
+            if len(parts) >= 2:
+                changes.append((
+                    parts[0],
+                    parts[1] if len(parts) > 1 else "",
+                    parts[-1] if len(parts) > 2 else "",
+                ))
+
+        return EnableResult(changes=changes)
 
     async def enable_unit(self, unit_name: str) -> EnableResult:
         return await self._enable_disable_op("enable", unit_name)
@@ -187,31 +288,14 @@ class SubprocessBackend(AbstractBackend):
     async def unmask_unit(self, unit_name: str) -> EnableResult:
         return await self._enable_disable_op("unmask", unit_name)
 
-    async def _enable_disable_op(self, operation: str, unit_name: str) -> EnableResult:
-        try:
-            stdout, _, _ = await self._run_systemctl(operation, unit_name)
-        except SubprocessError as exc:
-            raise UnitOperationError(unit_name, operation, exc.stderr) from exc
-
-        changes: list[tuple[str, str, str]] = []
-        for line in stdout.splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            # Typical output: "Created symlink /path/to -> /path/from"
-            # or "Removed /path"
-            parts = line.split()
-            if len(parts) >= 2:
-                changes.append((
-                    parts[0],
-                    parts[1] if len(parts) > 1 else "",
-                    parts[-1] if len(parts) > 2 else "",
-                ))
-
-        return EnableResult(changes=changes)
-
     async def daemon_reload(self) -> None:
         await self._run_systemctl("daemon-reload")
+
+    async def reset_failed(self, unit_name: str | None = None) -> None:
+        args = ["reset-failed"]
+        if unit_name:
+            args.append(unit_name)
+        await self._run_systemctl(*args)
 
     async def get_unit_file_state(self, unit_name: str) -> str:
         stdout, _, _ = await self._run_systemctl("is-enabled", unit_name, check=False)

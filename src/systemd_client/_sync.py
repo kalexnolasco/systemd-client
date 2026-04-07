@@ -4,15 +4,15 @@ from __future__ import annotations
 
 import asyncio
 import threading
-from typing import TYPE_CHECKING, TypeVar
+from typing import TYPE_CHECKING, Any, TypeVar
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Coroutine, Iterator
 
 T = TypeVar("T")
 
 
-def run_sync(coro: object) -> object:
+def run_sync(coro: Coroutine[Any, Any, T]) -> T:  # type: ignore[type-arg]
     """Run an async coroutine synchronously.
 
     If there's already a running event loop, creates a new thread.
@@ -25,13 +25,13 @@ def run_sync(coro: object) -> object:
 
     if loop is not None and loop.is_running():
         # We're inside an async context — run in a new thread
-        result: object = None
+        result: T | None = None
         exception: BaseException | None = None
 
         def _run() -> None:
             nonlocal result, exception
             try:
-                result = asyncio.run(coro)  # type: ignore[arg-type]
+                result = asyncio.run(coro)
             except BaseException as exc:
                 exception = exc
 
@@ -40,9 +40,9 @@ def run_sync(coro: object) -> object:
         thread.join()
         if exception is not None:
             raise exception
-        return result
+        return result  # type: ignore[return-value]
     else:
-        return asyncio.run(coro)  # type: ignore[arg-type]
+        return asyncio.run(coro)
 
 
 def sync_generator_bridge(async_gen_factory: object) -> Iterator[T]:

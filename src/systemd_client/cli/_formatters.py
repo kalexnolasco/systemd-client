@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from systemd_client.models import JournalEntry, UnitInfo, UnitStatus
+    from systemd_client.models import JournalEntry, UnitFileInfo, UnitInfo, UnitStatus
 
 
 def _serialize(obj: object) -> object:
@@ -66,6 +66,45 @@ def format_units_json(units: list[UnitInfo]) -> str:
     return json.dumps([asdict(u) for u in units], default=_serialize, indent=2)
 
 
+def format_unit_files_table(files: list[UnitFileInfo], no_color: bool = False) -> str:
+    """Format unit file list as a table."""
+    if not files:
+        return "No unit files found."
+
+    name_w = max(len(f.name) for f in files)
+    state_w = max(len(f.state.value) for f in files)
+
+    header = f"{'UNIT FILE':<{name_w}}  {'STATE':<{state_w}}  PRESET"
+    lines = [header]
+
+    for f in files:
+        state_str = f.state.value
+        if not no_color:
+            if f.state.value == "enabled":
+                state_str = f"\033[32m{state_str}\033[0m"
+            elif f.state.value in ("disabled", "masked"):
+                state_str = f"\033[90m{state_str}\033[0m"
+            elif f.state.value == "static":
+                state_str = f"\033[33m{state_str}\033[0m"
+
+        if not no_color and f.state.value in ("enabled", "disabled", "masked", "static"):
+            pad = state_w - len(f.state.value)
+            state_col = state_str + " " * pad
+        else:
+            state_col = f"{state_str:<{state_w}}"
+
+        preset = f.preset or "-"
+        line = f"{f.name:<{name_w}}  {state_col}  {preset}"
+        lines.append(line)
+
+    return "\n".join(lines)
+
+
+def format_unit_files_json(files: list[UnitFileInfo]) -> str:
+    """Format unit file list as JSON."""
+    return json.dumps([asdict(f) for f in files], default=_serialize, indent=2)
+
+
 def format_status_table(status: UnitStatus, no_color: bool = False) -> str:
     """Format unit status as a human-readable block."""
     lines: list[str] = []
@@ -87,6 +126,8 @@ def format_status_table(status: UnitStatus, no_color: bool = False) -> str:
         lines.append(f"  Main PID: {status.main_pid}")
     if status.fragment_path:
         lines.append(f"  Unit file: {status.fragment_path}")
+    if status.exec_main_status is not None:
+        lines.append(f"  Exit code: {status.exec_main_status}")
     if status.result and status.result != "success":
         lines.append(f"  Result: {status.result}")
     if status.documentation:

@@ -6,6 +6,7 @@ from systemd_client.enums import (
     JournalPriority,
     LoadState,
     SubState,
+    SystemdScope,
     UnitFileState,
     UnitType,
 )
@@ -67,3 +68,17 @@ class TestBackendType:
         assert BackendType.AUTO == "auto"
         assert BackendType.SUBPROCESS == "subprocess"
         assert BackendType.DBUS == "dbus"
+
+
+class TestSystemdScope:
+    def test_values(self):
+        assert SystemdScope.USER == "user"
+        assert SystemdScope.SYSTEM == "system"
+
+    def test_from_string(self):
+        assert SystemdScope("user") == SystemdScope.USER
+        assert SystemdScope("system") == SystemdScope.SYSTEM
+
+    def test_is_str(self):
+        assert isinstance(SystemdScope.USER, str)
+        assert f"--{SystemdScope.USER}" == "--user"

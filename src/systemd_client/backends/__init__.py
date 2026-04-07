@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from systemd_client.backends._base import AbstractBackend
 from systemd_client.backends._subprocess import SubprocessBackend
-from systemd_client.enums import BackendType
+from systemd_client.enums import BackendType, SystemdScope
 from systemd_client.exceptions import BackendNotAvailableError
 
 __all__ = [
@@ -15,15 +15,18 @@ __all__ = [
 ]
 
 
-def get_backend(backend_type: BackendType = BackendType.AUTO) -> AbstractBackend:
+def get_backend(
+    backend_type: BackendType = BackendType.AUTO,
+    scope: SystemdScope = SystemdScope.USER,
+) -> AbstractBackend:
     """Create and return the appropriate backend instance."""
     if backend_type == BackendType.SUBPROCESS:
-        return SubprocessBackend()
+        return SubprocessBackend(scope=scope)
 
     if backend_type == BackendType.DBUS:
         try:
             from systemd_client.backends._dbus import DBusBackend
-            return DBusBackend()
+            return DBusBackend(scope=scope)
         except ImportError as exc:
             raise BackendNotAvailableError(
                 "dbus",
@@ -33,6 +36,6 @@ def get_backend(backend_type: BackendType = BackendType.AUTO) -> AbstractBackend
     # AUTO: try dbus first, fall back to subprocess
     try:
         from systemd_client.backends._dbus import DBusBackend
-        return DBusBackend()
+        return DBusBackend(scope=scope)
     except (ImportError, Exception):
-        return SubprocessBackend()
+        return SubprocessBackend(scope=scope)

@@ -1,6 +1,6 @@
 # CLI
 
-systemd-client ships with a **command-line interface** that acts as a typed, colored wrapper around `systemctl --user` and `journalctl --user`.
+systemd-client ships with a **command-line interface** that acts as a typed, colored wrapper around `systemctl` and `journalctl`.
 
 Let's see what it can do.
 
@@ -11,7 +11,7 @@ The CLI is included automatically when you install the package -- no extras need
 ```console
 $ pip install systemd-client
 $ systemd-client --version
-systemd-client 0.1.0
+systemd-client 0.2.0
 ```
 
 !!! check
@@ -37,6 +37,19 @@ $ systemd-client list --state failed
 !!! tip
     Combine `--type` and `--state` to narrow things down fast. For example, `systemd-client list --type service --state failed` shows only failed services.
 
+## List Unit Files
+
+See all **installed** unit files, including those not currently loaded:
+
+```console
+$ systemd-client list-unit-files
+$ systemd-client list-unit-files --type service
+$ systemd-client list-unit-files --state enabled
+```
+
+!!! info
+    `list-unit-files` shows everything installed, while `list` only shows currently loaded units. Use `list-unit-files` to discover disabled or masked services.
+
 ## Unit Status
 
 Get detailed information about a specific unit:
@@ -45,7 +58,15 @@ Get detailed information about a specific unit:
 $ systemd-client status my-app.service
 ```
 
-This shows the same kind of information you'd see from `systemctl --user status`, but parsed and formatted.
+This shows the same kind of information you'd see from `systemctl status`, but parsed and formatted.
+
+## Show Unit File Content
+
+View the content of a unit file:
+
+```console
+$ systemd-client cat my-app.service
+```
 
 ## Unit Operations
 
@@ -57,6 +78,33 @@ $ systemd-client stop my-app.service
 $ systemd-client restart my-app.service
 $ systemd-client reload my-app.service
 ```
+
+### Batch Operations
+
+Pass multiple unit names to operate on them at once:
+
+```console
+$ systemd-client start app.service worker.service scheduler.service
+$ systemd-client restart app.service worker.service
+```
+
+### Non-Blocking Mode
+
+Use `--no-block` to return immediately without waiting for the operation to complete:
+
+```console
+$ systemd-client start --no-block my-app.service
+```
+
+### Try-Restart and Reload-or-Restart
+
+```console
+$ systemd-client try-restart my-app.service
+$ systemd-client reload-or-restart my-app.service
+```
+
+!!! info
+    `try-restart` only restarts if the unit is currently active. `reload-or-restart` reloads if the unit supports it, otherwise restarts.
 
 ### Enable and Disable
 
@@ -85,6 +133,15 @@ After editing a `.service` file, tell systemd to pick up the changes:
 
 ```console
 $ systemd-client daemon-reload
+```
+
+### Reset Failed
+
+Clear the failed state for a unit, or all units:
+
+```console
+$ systemd-client reset-failed my-app.service
+$ systemd-client reset-failed
 ```
 
 ## Journal
@@ -154,10 +211,24 @@ These flags work with **any** command:
 
 | Flag | Description |
 |------|-------------|
+| `--scope user\|system` | Scope: user session or system-wide (default: `user`) |
 | `--backend auto\|subprocess\|dbus` | Backend selection (default: `auto`) |
 | `--json` | Output as JSON instead of table |
 | `--no-color` | Disable ANSI color codes |
 | `--version` | Show version and exit |
+
+### System Scope
+
+By default, all commands operate on the **user session**. To manage **system services**, use `--scope system`:
+
+```console
+$ systemd-client --scope system list --type service
+$ systemd-client --scope system status nginx.service
+$ systemd-client --scope system restart nginx.service
+```
+
+!!! warning
+    System scope operations typically require root privileges (or appropriate polkit rules).
 
 ### JSON Output
 

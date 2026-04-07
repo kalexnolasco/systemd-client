@@ -1,6 +1,6 @@
 # Sync Client
 
-The `SystemdClient` is the simplest way to manage your **systemd user services** from Python. It wraps the async internals so you don't need to worry about `await` or event loops -- just call methods and get results.
+The `SystemdClient` is the simplest way to manage your **systemd services** from Python. It wraps the async internals so you don't need to worry about `await` or event loops -- just call methods and get results.
 
 Let's walk through everything you can do with it.
 
@@ -11,21 +11,26 @@ First, import and instantiate the client:
 ```python hl_lines="3"
 from systemd_client import SystemdClient, BackendType
 
-client = SystemdClient()  # (1)!
+with SystemdClient() as client:  # (1)!
+    units = client.list_units()
 ```
 
-1. By default, the client **auto-detects** the best backend. It tries D-Bus first, then falls back to subprocess.
+1. Use a context manager for proper cleanup. The client **auto-detects** the best backend: it tries D-Bus first, then falls back to subprocess.
 
-??? tip "Other options for backend selection..."
+??? tip "Other options..."
 
-    You can force a specific backend if you prefer:
+    You can force a specific backend or change scope:
 
-    ```python hl_lines="2 5"
+    ```python hl_lines="2 5 8"
     # Subprocess only — zero extra dependencies, recommended
     client = SystemdClient(backend=BackendType.SUBPROCESS)
 
     # D-Bus only — requires dasbus
     client = SystemdClient(backend=BackendType.DBUS)
+
+    # System scope (instead of user session)
+    from systemd_client import SystemdScope
+    client = SystemdClient(scope=SystemdScope.SYSTEM)
     ```
 
 ## List Units
@@ -65,6 +70,28 @@ my-scheduler.service                     inactive   dead
 
 !!! check
     If you see your services listed, everything is working.
+
+## List Unit Files
+
+To see all **installed** unit files (including disabled or masked ones), use `list_unit_files()`:
+
+```python hl_lines="1"
+files = client.list_unit_files(unit_type="service")
+for f in files:
+    print(f"{f.name}: {f.state} (preset: {f.preset})")
+```
+
+!!! tip
+    `list_units()` shows only currently loaded units. `list_unit_files()` shows everything installed -- useful for discovering disabled services.
+
+## Show Unit File Content
+
+Read the content of a unit file with `cat()`:
+
+```python
+content = client.cat("my-app.service")
+print(content)
+```
 
 ## Get Unit Status
 
@@ -107,31 +134,54 @@ print(f"Result:      {status.result}")
 
 Here's where it gets fun. You can start, stop, restart, and manage services just like you would from the terminal:
 
-```python hl_lines="2 3 4 5 8 12 13 16"
+```python hl_lines="2 3 4 5 8 9 12 16 17 20 23"
 # Start / stop / restart / reload
 client.start("my-app.service")
 client.stop("my-app.service")
 client.restart("my-app.service")
 client.reload("my-app.service")
 
+# Conditional restart / smart reload
+client.try_restart("my-app.service")        # (1)!
+client.reload_or_restart("my-app.service")  # (2)!
+
+# Non-blocking (fire and forget)
+client.start("my-app.service", no_block=True)  # (3)!
+
 # Enable / disable
-result = client.enable("my-app.service")  # (1)!
+result = client.enable("my-app.service")
 for change in result.changes:
     print(f"  {change[0]} {change[1]} -> {change[2]}")
 
 result = client.disable("my-app.service")
 
 # Mask / unmask (prevent starting entirely)
-client.mask("my-app.service")  # (2)!
+client.mask("my-app.service")
 client.unmask("my-app.service")
 
 # Reload daemon (after changing unit files)
-client.daemon_reload()  # (3)!
+client.daemon_reload()
+
+# Reset failed state
+client.reset_failed("my-app.service")  # (4)!
+client.reset_failed()  # all units
 ```
 
-1. `enable()` returns an `EnableResult` with a list of symlink changes that were made.
-2. Masking a unit **prevents it from being started** -- even manually. Useful for units you want to completely disable.
-3. Always call `daemon_reload()` after editing `.service` files so systemd picks up the changes.
+1. `try_restart()` only restarts if the unit is currently active -- does nothing otherwise.
+2. `reload_or_restart()` reloads the unit if it supports reload, otherwise restarts it.
+3. `no_block=True` returns immediately without waiting for systemd to complete the operation.
+4. `reset_failed()` clears the "failed" state so the unit can be started again.
+
+### Batch Operations
+
+Operate on multiple units at once:
+
+```python
+# Start/stop/restart multiple units in one call
+client.start_units(["app.service", "worker.service", "scheduler.service"])
+client.stop_units(["app.service", "worker.service"])
+client.restart_units(["app.service", "worker.service"])
+```
 
 !!! warning
     All operations raise `UnitOperationError` on failure. Always handle this in production code:

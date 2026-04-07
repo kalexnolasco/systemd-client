@@ -1,4 +1,4 @@
-"""systemd-client: High-level Python client for systemd user services."""
+"""systemd-client: High-level Python client for systemd user and system services."""
 
 from systemd_client._version import __version__
 from systemd_client.client import AsyncSystemdClient, SystemdClient
@@ -8,6 +8,7 @@ from systemd_client.enums import (
     JournalPriority,
     LoadState,
     SubState,
+    SystemdScope,
     UnitFileState,
     UnitType,
 )
@@ -22,20 +23,15 @@ from systemd_client.exceptions import (
     UnitOperationError,
 )
 from systemd_client.journal import AsyncJournalReader, JournalQuery, JournalReader
-from systemd_client.models import EnableResult, JournalEntry, UnitInfo, UnitStatus
+from systemd_client.models import EnableResult, JournalEntry, UnitFileInfo, UnitInfo, UnitStatus
 
 __all__ = [
-    # Enums
     "ActiveState",
-    # Journal
     "AsyncJournalReader",
-    # Clients
     "AsyncSystemdClient",
-    # Exceptions
     "BackendError",
     "BackendNotAvailableError",
     "BackendType",
-    # Models
     "EnableResult",
     "JournalEntry",
     "JournalError",
@@ -48,12 +44,13 @@ __all__ = [
     "SubprocessError",
     "SystemdClient",
     "SystemdClientError",
+    "SystemdScope",
+    "UnitFileInfo",
     "UnitFileState",
     "UnitInfo",
     "UnitNotFoundError",
     "UnitOperationError",
     "UnitStatus",
     "UnitType",
-    # Version
     "__version__",
 ]

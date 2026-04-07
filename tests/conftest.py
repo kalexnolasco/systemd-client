@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from systemd_client.enums import ActiveState, LoadState, SubState
-from systemd_client.models import UnitInfo
+from systemd_client.enums import ActiveState, LoadState, SubState, UnitFileState
+from systemd_client.models import UnitFileInfo, UnitInfo
 
 
 @pytest.fixture
@@ -41,6 +41,16 @@ def sample_list_units_json() -> str:
             "active": "inactive",
             "sub": "dead",
         },
+    ])
+
+
+@pytest.fixture
+def sample_list_unit_files_json() -> str:
+    """Sample JSON output from systemctl list-unit-files --output=json."""
+    return json.dumps([
+        {"unit_file": "test-app.service", "state": "enabled", "preset": "enabled"},
+        {"unit_file": "test-timer.timer", "state": "disabled", "preset": "disabled"},
+        {"unit_file": "test-masked.service", "state": "masked"},
     ])
 
 
@@ -87,6 +97,15 @@ def sample_journal_json_lines() -> list[str]:
             "_HOSTNAME": "testhost",
             "__CURSOR": "s=abc124",
         }),
+    ]
+
+
+@pytest.fixture
+def sample_unit_file_info() -> list[UnitFileInfo]:
+    """Sample UnitFileInfo list."""
+    return [
+        UnitFileInfo(name="test-app.service", state=UnitFileState.ENABLED, preset="enabled"),
+        UnitFileInfo(name="test-timer.timer", state=UnitFileState.DISABLED, preset="disabled"),
     ]
 
 
