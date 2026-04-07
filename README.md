@@ -289,11 +289,72 @@ Your Application
             +-- Notify --------------- $NOTIFY_SOCKET -----------------> sd_notify
 ```
 
+## Roadmap
+
+### v1.0.0 — Production Ready
+
+- [x] Unit management (list, status, start, stop, restart, reload, enable, disable, mask, unmask)
+- [x] Unit File Builder (ServiceBuilder, TimerBuilder, SocketBuilder, PathBuilder)
+- [x] Install / uninstall / edit (drop-in overrides)
+- [x] Transient units (systemd-run, run_on_calendar)
+- [x] Journal query with filters + real-time follow
+- [x] Resource control (set_property, get_resource_usage)
+- [x] List timers, sockets, dependencies
+- [x] systemd-analyze (blame, security, verify, critical-chain)
+- [x] sd_notify protocol (ready, status, watchdog, stopping)
+- [x] Power management (poweroff, reboot, suspend, hibernate)
+- [x] Environment management (show, set, unset)
+- [x] Session management (list-sessions, list-users, loginctl)
+- [x] Interactive TUI with Ratatui (mouse, keyboard, filters, journal)
+- [x] Dual API (async + sync) with context managers
+- [x] User + system scope
+- [x] CLI with 32+ commands
+- [x] Zero core dependencies
+- [x] 286 tests, ruff clean, pyright strict
+- [x] 13 documentation guides, 9 API references, 22 examples
+- [ ] Integration tests with real systemd (create timer, verify, cleanup)
+- [ ] Shell completions (bash, zsh, fish)
+- [ ] TUI screenshots in README and docs
+- [ ] Publish to awesome-python list
+
+### v1.1.0 — Advanced Features
+
+- [ ] D-Bus signals (PropertiesChanged watch for real-time monitoring without polling)
+- [ ] `systemd-run --scope` (scope units)
+- [ ] `systemctl edit --full` (replace entire unit file)
+- [ ] `systemctl show` with specific property selection
+- [ ] `list-dependencies --reverse`
+- [ ] `--output=yaml` format
+- [ ] Journal export to file
+- [ ] Credential management (LoadCredential, SetCredential)
+
+### v1.2.0 — Ecosystem
+
+- [ ] systemd-tmpfiles wrapper (create, clean, remove)
+- [ ] systemd-sysusers wrapper (user/group management)
+- [ ] systemd-networkd integration
+- [ ] systemd-resolved integration
+- [ ] machinectl / systemd-nspawn container management
+- [ ] coredumpctl integration
+
+### v2.0.0 — Full Platform
+
+- [ ] Remote systemd management (SSH + systemctl)
+- [ ] Multi-host dashboard in TUI
+- [ ] Ansible module compatibility
+- [ ] Prometheus metrics exporter
+- [ ] REST API server mode (`systemd-client serve`)
+- [ ] Plugin system for custom backends
+
 ## Requirements
 
 - Python >= 3.11
 - Linux with systemd
 - `systemctl` and `journalctl` on PATH
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and pull request process.
 
 ## License
 
