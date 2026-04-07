@@ -31,8 +31,10 @@ try:
     from ratatui_py import (
         App,
         Color,
+        DrawCmd,
         KeyCode,
         Paragraph,
+        Rect,
         Style,
         Table,
         Terminal,
@@ -181,7 +183,6 @@ def _build_header(state: dict[str, Any]) -> Paragraph:
 def render(term: Terminal, state: dict[str, Any]) -> None:
     """Main render function."""
     w, h = term.size()
-    from ratatui_py import Rect
     area = Rect(0, 0, w, h)
     body = margin_rect(area, all=0)
 
@@ -200,12 +201,13 @@ def render(term: Terminal, state: dict[str, Any]) -> None:
     header = _build_header(state)
     footer = _build_help_bar()
 
-    with term.frame() as f:
-        f.paragraph(header, header_area)
-        f.table(tbl, left)
-        f.paragraph(detail, detail_area)
-        f.paragraph(journal, journal_area)
-        f.paragraph(footer, footer_area)
+    term.draw_frame([
+        DrawCmd.paragraph(header, header_area),
+        DrawCmd.table(tbl, left),
+        DrawCmd.paragraph(detail, detail_area),
+        DrawCmd.paragraph(journal, journal_area),
+        DrawCmd.paragraph(footer, footer_area),
+    ])
 
 
 def on_event(term: Terminal, evt: dict[str, Any], state: dict[str, Any]) -> bool:
