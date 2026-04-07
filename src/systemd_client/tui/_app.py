@@ -70,7 +70,7 @@ THEME = {
     "warn": Color.Yellow,
 }
 
-TAB_NAMES = [" Dashboard ", " Journal ", " Timers ", " Help "]
+TAB_NAMES = [" Dashboard ", " Timers ", " Help "]
 
 
 def _state_color(state: str) -> Color:
@@ -311,9 +311,9 @@ def _build_help_footer(state: dict[str, Any] | None = None) -> Paragraph:
     """Build the bottom help bar."""
     p = Paragraph.new_empty()
     keys = [
-        ("↑↓", "Nav"), ("Tab", "Scope"), ("/", "Search"), ("1-4", "Tabs"),
+        ("↑↓", "Nav"), ("Tab", "Scope"), ("/", "Search"), ("1-3", "Tabs"),
         ("F1", "All"), ("F2", "Svc"), ("F3", "Timer"), ("F4", "Socket"), ("F5", "Failed"),
-        ("s", "Start"), ("S", "Stop"), ("r", "Restart"), ("j", "Log"), ("q", "Quit"),
+        ("s", "Start"), ("S", "Stop"), ("r", "Restart"), ("j", "Journal"), ("q", "Quit"),
     ]
     for key, desc in keys:
         p.append_span(f" {key} ", Style(fg=THEME["key_fg"], bg=THEME["key_bg"]).bold())
@@ -331,7 +331,7 @@ def _build_help_screen() -> Paragraph:
             ("PgUp / PgDn", "Move 10 items up/down"),
             ("Home / End", "Jump to first/last"),
             ("Tab", "Toggle user/system scope"),
-            ("1-4", "Switch between tabs"),
+            ("1-3", "Switch between tabs"),
             ("/ + text", "Filter units by name"),
             ("Esc", "Clear filter / Exit"),
             ("q", "Quit"),
@@ -352,8 +352,10 @@ def _build_help_screen() -> Paragraph:
             ("F", "Reset failed state"),
             ("R", "Reload systemd daemon"),
         ]),
-        ("Journal", [
-            ("j", "Load journal for selected unit"),
+        ("Journal (bottom panel)", [
+            ("j", "Load/refresh journal for selected unit"),
+            ("", "Journal auto-refreshes every 2 seconds"),
+            ("", "Shows last 50 entries with priority colors"),
         ]),
     ]
     for section, items in sections:
@@ -417,33 +419,36 @@ def render(term: Terminal, state: dict[str, Any]) -> None:
     tab = state.get("tab", 0)
 
     if tab == 0:  # Dashboard
+        # Top: table (60%) + detail/actions (40%)
+        # Bottom: journal panel
+        journal_h = max(8, int(body_h * 0.3)) if state.get("journal") else 0
+        top_h = body_h - journal_h
+
         left_w = int(w * 0.6)
         right_w = w - left_w
 
-        detail_h = int(body_h * 0.4)
-        actions_h = int(body_h * 0.4)
-        gauge_h = max(3, body_h - detail_h - actions_h)
-        actions_h = body_h - detail_h - gauge_h
+        # Right: detail (50%) + actions (50%)
+        detail_h = int(top_h * 0.5)
+        actions_h = top_h - detail_h
 
         cmds.extend([
-            DrawCmd.table(_build_unit_table(state), Rect(0, body_y, left_w, body_h)),
+            DrawCmd.table(_build_unit_table(state), Rect(0, body_y, left_w, top_h)),
             DrawCmd.paragraph(_build_detail(state), Rect(left_w, body_y, right_w, detail_h)),
             DrawCmd.paragraph(
                 _build_actions(state), Rect(left_w, body_y + detail_h, right_w, actions_h),
             ),
-            DrawCmd.gauge(
-                _build_stats_gauge(state),
-                Rect(left_w, body_y + detail_h + actions_h, right_w, gauge_h),
-            ),
         ])
 
-    elif tab == 1:  # Journal
-        cmds.append(DrawCmd.paragraph(_build_journal(state), Rect(0, body_y, w, body_h)))
+        # Journal at bottom (full width, only if loaded)
+        if journal_h > 0:
+            cmds.append(DrawCmd.paragraph(
+                _build_journal(state), Rect(0, body_y + top_h, w, journal_h),
+            ))
 
-    elif tab == 2:  # Timers
+    elif tab == 1:  # Timers
         cmds.append(DrawCmd.table(_build_timers_tab(state), Rect(0, body_y, w, body_h)))
 
-    elif tab == 3:  # Help
+    elif tab == 2:  # Help
         cmds.append(DrawCmd.paragraph(_build_help_screen(), Rect(0, body_y, w, body_h)))
 
     term.draw_frame(cmds)
@@ -486,11 +491,11 @@ def on_event(term: Terminal, evt: dict[str, Any], state: dict[str, Any]) -> bool
         state["type_filter"] = ""
         return True
 
-    # Tab switching (1-4 keys)
-    if char in ("1", "2", "3", "4"):
+    # Tab switching (1-3 keys)
+    if char in ("1", "2", "3"):
         new_tab = int(char) - 1
         state["tab"] = new_tab
-        if new_tab == 2 and not state.get("timers"):
+        if new_tab == 1 and not state.get("timers"):
             import contextlib
             with contextlib.suppress(Exception):
                 state["timers"] = client.list_timers()
@@ -543,8 +548,8 @@ def on_event(term: Terminal, evt: dict[str, Any], state: dict[str, Any]) -> bool
     elif code == KeyCode.End:
         state["selected"] = max(0, len(units) - 1)
 
-    # Unit operations (work from dashboard tab)
-    elif char and units and state.get("tab", 0) in (0, 1):
+    # Unit operations (dashboard tab)
+    elif char and units and state.get("tab", 0) == 0:
         idx = min(state.get("selected", 0), len(units) - 1)
         unit_name = units[idx].name
 
@@ -571,11 +576,11 @@ def on_event(term: Terminal, evt: dict[str, Any], state: dict[str, Any]) -> bool
                 client.reset_failed(unit_name)
                 state["message"] = f"OK: Reset failed {unit_name}"
             elif char == "j":
-                entries = client.journal(unit=unit_name, lines=100)
+                entries = client.journal(unit=unit_name, lines=50)
                 state["journal"] = entries
                 state["journal_unit"] = unit_name
-                state["tab"] = 1  # switch to journal tab
-                state["message"] = f"Loaded {len(entries)} entries"
+                state["tab"] = 0  # stay on dashboard
+                state["message"] = f"Journal: {len(entries)} entries"
         except Exception as exc:
             state["message"] = f"Error: {exc}"
 
@@ -592,6 +597,11 @@ def on_tick(term: Terminal, state: dict[str, Any]) -> None:
             state["units"] = client.list_units()
             if state["selected"] >= len(state["units"]):
                 state["selected"] = max(0, len(state["units"]) - 1)
+
+            # Auto-refresh journal if one is loaded
+            jrnl_unit = state.get("journal_unit")
+            if jrnl_unit and state.get("tab", 0) == 0:
+                state["journal"] = client.journal(unit=jrnl_unit, lines=50)
         except Exception:
             pass
 
