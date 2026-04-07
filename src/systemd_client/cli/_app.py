@@ -77,6 +77,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_reset = sub.add_parser("reset-failed", help="Reset failed state")
     p_reset.add_argument("unit", nargs="?", help="Unit name (all if omitted)")
 
+    # power management
+    sub.add_parser("poweroff", help="Power off the system")
+    sub.add_parser("reboot", help="Reboot the system")
+    sub.add_parser("suspend", help="Suspend the system")
+    sub.add_parser("hibernate", help="Hibernate the system")
+
     # analyze
     sub.add_parser("analyze-blame", help="Show slowest units at boot")
     p_asec = sub.add_parser("analyze-security", help="Analyze unit security hardening")
@@ -258,6 +264,10 @@ def _dispatch(client: SystemdClient, args: argparse.Namespace) -> int:
             print(f"Reset failed state for {args.unit}")
         else:
             print("Reset all failed states")
+
+    elif cmd in ("poweroff", "reboot", "suspend", "hibernate"):
+        getattr(client, cmd)()
+        print(f"{cmd.capitalize()} initiated")
 
     elif cmd == "analyze-blame":
         entries = client.analyze_blame()

@@ -225,6 +225,22 @@ class AsyncSystemdClient:
         """Create a drop-in override for a unit. Returns the override path."""
         return await self._backend.edit_unit_file(unit_name, overrides)
 
+    async def poweroff(self) -> None:
+        """Power off the system."""
+        await self._backend._run_systemctl("poweroff")
+
+    async def reboot(self) -> None:
+        """Reboot the system."""
+        await self._backend._run_systemctl("reboot")
+
+    async def suspend(self) -> None:
+        """Suspend the system."""
+        await self._backend._run_systemctl("suspend")
+
+    async def hibernate(self) -> None:
+        """Hibernate the system."""
+        await self._backend._run_systemctl("hibernate")
+
     async def analyze_blame(self) -> list[BlameEntry]:
         """List units ordered by initialization time (slowest first)."""
         from systemd_client._analyze import analyze_blame
@@ -460,6 +476,22 @@ class SystemdClient:
     def edit(self, unit_name: str, overrides: dict[str, dict[str, str]]) -> str:
         """Create a drop-in override for a unit. Returns the override path."""
         return run_sync(self._async_client.edit(unit_name, overrides))
+
+    def poweroff(self) -> None:
+        """Power off the system."""
+        run_sync(self._async_client.poweroff())
+
+    def reboot(self) -> None:
+        """Reboot the system."""
+        run_sync(self._async_client.reboot())
+
+    def suspend(self) -> None:
+        """Suspend the system."""
+        run_sync(self._async_client.suspend())
+
+    def hibernate(self) -> None:
+        """Hibernate the system."""
+        run_sync(self._async_client.hibernate())
 
     def analyze_blame(self) -> list[BlameEntry]:
         """List units ordered by initialization time (slowest first)."""

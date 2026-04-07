@@ -43,6 +43,7 @@ from systemd_client.models import (
     UnitInfo,
     UnitStatus,
 )
+from systemd_client.notify import SystemdNotifier
 
 __all__ = [
     "ActiveState",
@@ -73,6 +74,7 @@ __all__ = [
     "SubprocessError",
     "SystemdClient",
     "SystemdClientError",
+    "SystemdNotifier",
     "SystemdScope",
     "TimerBuilder",
     "TimerInfo",
