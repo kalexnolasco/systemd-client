@@ -43,6 +43,15 @@ def dbus_path_to_unit_name(path: str) -> str:
     return "".join(result)
 
 
+def unescape_unit_name(name: str) -> str:
+    """Decode systemd's \\xNN hex escaping in unit names.
+
+    Example: "app-git\\x2dannex.service" -> "app-git-annex.service"
+    """
+    import re
+    return re.sub(r"\\x([0-9a-fA-F]{2})", lambda m: chr(int(m.group(1), 16)), name)
+
+
 def unit_dbus_object_path(unit_name: str) -> str:
     """Return the full DBus object path for a unit.
 

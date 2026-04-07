@@ -23,7 +23,9 @@ def parse_journal_line(line: str) -> JournalEntry:
 
 def _entry_from_dict(data: dict[str, object]) -> JournalEntry:
     """Build a JournalEntry from a parsed JSON dict."""
-    message = str(data.get("MESSAGE", ""))
+    from systemd_client._unit_escape import unescape_unit_name
+
+    message = unescape_unit_name(str(data.get("MESSAGE", "")))
 
     # Priority
     raw_priority = str(data.get("PRIORITY", "6"))

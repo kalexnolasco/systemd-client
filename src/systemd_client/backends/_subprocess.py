@@ -8,6 +8,7 @@ import shutil
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from systemd_client._unit_escape import unescape_unit_name
 from systemd_client.backends._base import AbstractBackend
 from systemd_client.backends._paths import unit_file_dir
 from systemd_client.enums import (
@@ -86,8 +87,8 @@ class SubprocessBackend(AbstractBackend):
         for entry in data:
             try:
                 units.append(UnitInfo(
-                    name=entry["unit"],
-                    description=entry.get("description", ""),
+                    name=unescape_unit_name(entry["unit"]),
+                    description=unescape_unit_name(entry.get("description", "")),
                     load_state=LoadState(entry.get("load", "loaded")),
                     active_state=ActiveState(entry.get("active", "inactive")),
                     sub_state=SubState(entry.get("sub", "dead")),
@@ -115,7 +116,7 @@ class SubprocessBackend(AbstractBackend):
         for entry in data:
             try:
                 files.append(UnitFileInfo(
-                    name=entry.get("unit_file", entry.get("unit", "")),
+                    name=unescape_unit_name(entry.get("unit_file", entry.get("unit", ""))),
                     state=UnitFileState(entry.get("state", "disabled")),
                     preset=entry.get("preset") or None,
                 ))
@@ -189,8 +190,8 @@ class SubprocessBackend(AbstractBackend):
         ]
 
         return UnitStatus(
-            name=props.get("Id", unit_name),
-            description=props.get("Description", ""),
+            name=unescape_unit_name(props.get("Id", unit_name)),
+            description=unescape_unit_name(props.get("Description", "")),
             load_state=_safe_enum(LoadState, "LoadState", "loaded"),  # type: ignore[arg-type]
             active_state=_safe_enum(ActiveState, "ActiveState", "inactive"),  # type: ignore[arg-type]
             sub_state=_safe_enum(SubState, "SubState", "dead"),  # type: ignore[arg-type]
