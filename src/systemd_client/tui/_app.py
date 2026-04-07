@@ -280,12 +280,13 @@ def _build_journal(state: dict[str, Any]) -> Paragraph:
                 THEME["warn"] if prio == "4" else THEME["text"]
             )
             p.append_span(f" {ts} ", Style(fg=THEME["muted"]))
-            p.append_span(entry.message[:60], Style(fg=prio_color))
+            p.append_span(entry.message, Style(fg=prio_color))
             p.line_break()
 
     jrnl_unit = state.get("journal_unit", "")
     title = f" Journal: {jrnl_unit} " if jrnl_unit else " Journal "
     p.set_block_title(title, True)
+    p.set_wrap(True)
     p.set_scroll(max(0, len(entries) - 18))
     return p
 
