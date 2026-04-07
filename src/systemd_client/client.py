@@ -17,6 +17,9 @@ if TYPE_CHECKING:
     from systemd_client.models import (
         EnableResult,
         JournalEntry,
+        ResourceUsage,
+        SocketInfo,
+        TimerInfo,
         TransientResult,
         UnitFile,
         UnitFileInfo,
@@ -154,6 +157,30 @@ class AsyncSystemdClient:
     async def reset_failed(self, unit_name: str | None = None) -> None:
         """Reset the failed state of a unit, or all units if no name given."""
         await self._backend.reset_failed(unit_name)
+
+    async def set_property(self, unit_name: str, properties: dict[str, str]) -> None:
+        """Set runtime properties on a unit (cgroup limits, etc.)."""
+        await self._backend.set_property(unit_name, properties)
+
+    async def get_resource_usage(self, unit_name: str) -> ResourceUsage:
+        """Get resource usage statistics for a unit."""
+        return await self._backend.get_resource_usage(unit_name)
+
+    async def list_timers(self) -> list[TimerInfo]:
+        """List active timers."""
+        return await self._backend.list_timers()
+
+    async def list_sockets(self) -> list[SocketInfo]:
+        """List active sockets."""
+        return await self._backend.list_sockets()
+
+    async def list_dependencies(self, unit_name: str) -> list[str]:
+        """List dependency tree of a unit."""
+        return await self._backend.list_dependencies(unit_name)
+
+    async def kill(self, unit_name: str, signal: str = "SIGTERM") -> None:
+        """Send a signal to a unit's processes."""
+        await self._backend.kill_unit(unit_name, signal)
 
     async def run(
         self,
@@ -348,6 +375,30 @@ class SystemdClient:
     def reset_failed(self, unit_name: str | None = None) -> None:
         """Reset the failed state of a unit, or all units if no name given."""
         run_sync(self._async_client.reset_failed(unit_name))
+
+    def set_property(self, unit_name: str, properties: dict[str, str]) -> None:
+        """Set runtime properties on a unit (cgroup limits, etc.)."""
+        run_sync(self._async_client.set_property(unit_name, properties))
+
+    def get_resource_usage(self, unit_name: str) -> ResourceUsage:
+        """Get resource usage statistics for a unit."""
+        return run_sync(self._async_client.get_resource_usage(unit_name))
+
+    def list_timers(self) -> list[TimerInfo]:
+        """List active timers."""
+        return run_sync(self._async_client.list_timers())
+
+    def list_sockets(self) -> list[SocketInfo]:
+        """List active sockets."""
+        return run_sync(self._async_client.list_sockets())
+
+    def list_dependencies(self, unit_name: str) -> list[str]:
+        """List dependency tree of a unit."""
+        return run_sync(self._async_client.list_dependencies(unit_name))
+
+    def kill(self, unit_name: str, signal: str = "SIGTERM") -> None:
+        """Send a signal to a unit's processes."""
+        run_sync(self._async_client.kill(unit_name, signal))
 
     def run(
         self,

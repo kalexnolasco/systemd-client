@@ -23,7 +23,16 @@ from systemd_client.exceptions import (
     UnitNotFoundError,
     UnitOperationError,
 )
-from systemd_client.models import EnableResult, TransientResult, UnitFileInfo, UnitInfo, UnitStatus
+from systemd_client.models import (
+    EnableResult,
+    ResourceUsage,
+    SocketInfo,
+    TimerInfo,
+    TransientResult,
+    UnitFileInfo,
+    UnitInfo,
+    UnitStatus,
+)
 
 if TYPE_CHECKING:
     from systemd_client.models import UnitFile
@@ -321,6 +330,96 @@ class SubprocessBackend(AbstractBackend):
         return returncode == 0
 
     # ── Unit file install / uninstall / edit ────────────────────
+
+    # ── Resource control + monitoring ─────────────────────────
+
+    async def set_property(self, unit_name: str, properties: dict[str, str]) -> None:
+        args = ["set-property", unit_name]
+        for k, v in properties.items():
+            args.append(f"{k}={v}")
+        try:
+            await self._run_systemctl(*args)
+        except SubprocessError as exc:
+            raise UnitOperationError(unit_name, "set-property", exc.stderr) from exc
+
+    async def get_resource_usage(self, unit_name: str) -> ResourceUsage:
+        stdout, _, _ = await self._run_systemctl(
+            "show", unit_name,
+            "-p", "CPUUsageNSec,MemoryCurrent,MemoryPeak,"
+            "TasksCurrent,IOReadBytes,IOWriteBytes",
+            "--no-pager",
+        )
+        props: dict[str, str] = {}
+        for line in stdout.splitlines():
+            if "=" in line:
+                k, _, v = line.partition("=")
+                props[k.strip()] = v.strip()
+
+        def _val(key: str) -> int | None:
+            raw = props.get(key, "")
+            if not raw or raw == "[not set]" or raw == "infinity":
+                return None
+            try:
+                v = int(raw)
+                return v if v > 0 else None
+            except ValueError:
+                return None
+
+        return ResourceUsage(
+            cpu_usage_nsec=_val("CPUUsageNSec"),
+            memory_current=_val("MemoryCurrent"),
+            memory_peak=_val("MemoryPeak"),
+            tasks_current=_val("TasksCurrent"),
+            io_read_bytes=_val("IOReadBytes"),
+            io_write_bytes=_val("IOWriteBytes"),
+        )
+
+    async def list_timers(self) -> list[TimerInfo]:
+        stdout, _, _ = await self._run_systemctl(
+            "list-timers", "--output=json", "--no-pager", "--all",
+        )
+        data = json.loads(stdout) if stdout.strip() else []
+        timers: list[TimerInfo] = []
+        for entry in data:
+            timers.append(TimerInfo(
+                name=entry.get("unit", ""),
+                time_left=entry.get("left", None),
+                unit=entry.get("unit", ""),
+                activates=entry.get("activates", None),
+            ))
+        return timers
+
+    async def list_sockets(self) -> list[SocketInfo]:
+        stdout, _, _ = await self._run_systemctl(
+            "list-sockets", "--output=json", "--no-pager", "--all",
+        )
+        data = json.loads(stdout) if stdout.strip() else []
+        sockets: list[SocketInfo] = []
+        for entry in data:
+            sockets.append(SocketInfo(
+                name=entry.get("unit", ""),
+                listen=entry.get("listen", ""),
+                type=entry.get("type", ""),
+                unit=entry.get("activates", entry.get("unit", "")),
+            ))
+        return sockets
+
+    async def list_dependencies(self, unit_name: str) -> list[str]:
+        stdout, _, _ = await self._run_systemctl(
+            "list-dependencies", unit_name, "--plain", "--no-pager",
+        )
+        deps: list[str] = []
+        for line in stdout.splitlines():
+            name = line.strip()
+            if name and name != unit_name:
+                deps.append(name)
+        return deps
+
+    async def kill_unit(self, unit_name: str, signal: str = "SIGTERM") -> None:
+        try:
+            await self._run_systemctl("kill", unit_name, f"--signal={signal}")
+        except SubprocessError as exc:
+            raise UnitOperationError(unit_name, "kill", exc.stderr) from exc
 
     # ── Transient units (systemd-run) ─────────────────────────
 

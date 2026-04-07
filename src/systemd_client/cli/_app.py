@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 
 from systemd_client._version import __version__
@@ -75,6 +76,23 @@ def _build_parser() -> argparse.ArgumentParser:
     # reset-failed
     p_reset = sub.add_parser("reset-failed", help="Reset failed state")
     p_reset.add_argument("unit", nargs="?", help="Unit name (all if omitted)")
+
+    # list-timers / list-sockets
+    sub.add_parser("list-timers", help="List active timers")
+    sub.add_parser("list-sockets", help="List active sockets")
+
+    # resources
+    p_res = sub.add_parser("resources", help="Show resource usage of a unit")
+    p_res.add_argument("unit", help="Unit name")
+
+    # kill
+    p_kill = sub.add_parser("kill", help="Send signal to a unit")
+    p_kill.add_argument("unit", help="Unit name")
+    p_kill.add_argument("--signal", "-s", default="SIGTERM", help="Signal (default: SIGTERM)")
+
+    # dependencies
+    p_deps = sub.add_parser("list-dependencies", help="Show unit dependency tree")
+    p_deps.add_argument("unit", help="Unit name")
 
     # run (transient)
     p_run = sub.add_parser("run", help="Run a command as a transient systemd service")
@@ -234,6 +252,58 @@ def _dispatch(client: SystemdClient, args: argparse.Namespace) -> int:
         else:
             print("Reset all failed states")
 
+    elif cmd == "list-timers":
+        timers = client.list_timers()
+        if args.use_json:
+            from dataclasses import asdict
+            print(json.dumps([asdict(t) for t in timers], default=str, indent=2))
+        elif not timers:
+            print("No timers found.")
+        else:
+            for t in timers:
+                act = f" -> {t.activates}" if t.activates else ""
+                left = f" ({t.time_left})" if t.time_left else ""
+                print(f"{t.name}{act}{left}")
+
+    elif cmd == "list-sockets":
+        sockets = client.list_sockets()
+        if args.use_json:
+            from dataclasses import asdict
+            print(json.dumps([asdict(s) for s in sockets], default=str, indent=2))
+        elif not sockets:
+            print("No sockets found.")
+        else:
+            for s in sockets:
+                print(f"{s.name}  {s.listen}  {s.type}")
+
+    elif cmd == "resources":
+        usage = client.get_resource_usage(args.unit)
+        if args.use_json:
+            from dataclasses import asdict
+            print(json.dumps(asdict(usage), default=str, indent=2))
+        else:
+            if usage.cpu_usage_nsec is not None:
+                print(f"  CPU: {usage.cpu_usage_nsec / 1_000_000_000:.3f}s")
+            if usage.memory_current is not None:
+                print(f"  Memory: {usage.memory_current / 1024 / 1024:.1f}MB")
+            if usage.memory_peak is not None:
+                print(f"  Memory peak: {usage.memory_peak / 1024 / 1024:.1f}MB")
+            if usage.tasks_current is not None:
+                print(f"  Tasks: {usage.tasks_current}")
+            if usage.io_read_bytes is not None:
+                print(f"  IO read: {usage.io_read_bytes / 1024:.0f}KB")
+            if usage.io_write_bytes is not None:
+                print(f"  IO write: {usage.io_write_bytes / 1024:.0f}KB")
+
+    elif cmd == "kill":
+        client.kill(args.unit, signal=args.signal)
+        print(f"Sent {args.signal} to {args.unit}")
+
+    elif cmd == "list-dependencies":
+        deps = client.list_dependencies(args.unit)
+        for d in deps:
+            print(f"  {d}")
+
     elif cmd == "run":
         props = {}
         if args.properties:
@@ -329,7 +399,6 @@ def _dispatch(client: SystemdClient, args: argparse.Namespace) -> int:
                 unit=args.unit, lines=args.lines, priority=priority,
             ):
                 if args.use_json:
-                    import json
                     from dataclasses import asdict
                     print(json.dumps(asdict(entry), default=str))
                 else:

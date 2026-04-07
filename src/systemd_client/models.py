@@ -90,6 +90,40 @@ class UnitFile:
 
 
 @dataclass(frozen=True, slots=True)
+class ResourceUsage:
+    """Resource usage information for a unit."""
+
+    cpu_usage_nsec: int | None = None
+    memory_current: int | None = None
+    memory_peak: int | None = None
+    tasks_current: int | None = None
+    io_read_bytes: int | None = None
+    io_write_bytes: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TimerInfo:
+    """Information about an active timer."""
+
+    name: str
+    next_trigger: datetime | None = None
+    time_left: str | None = None
+    last_trigger: datetime | None = None
+    unit: str | None = None
+    activates: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SocketInfo:
+    """Information about an active socket."""
+
+    name: str
+    listen: str = ""
+    type: str = ""
+    unit: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class TransientResult:
     """Result of running a transient unit via systemd-run."""
 

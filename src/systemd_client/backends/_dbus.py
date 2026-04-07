@@ -23,7 +23,16 @@ from systemd_client.exceptions import (
     UnitNotFoundError,
     UnitOperationError,
 )
-from systemd_client.models import EnableResult, TransientResult, UnitFileInfo, UnitInfo, UnitStatus
+from systemd_client.models import (
+    EnableResult,
+    ResourceUsage,
+    SocketInfo,
+    TimerInfo,
+    TransientResult,
+    UnitFileInfo,
+    UnitInfo,
+    UnitStatus,
+)
 
 if TYPE_CHECKING:
     from systemd_client.models import UnitFile
@@ -341,6 +350,98 @@ class DBusBackend(AbstractBackend):
             return state == "failed"
         except Exception:
             return False
+
+    # ── Resource control + monitoring ─────────────────────────
+
+    async def set_property(self, unit_name: str, properties: dict[str, str]) -> None:
+        try:
+            for k, v in properties.items():
+                await asyncio.to_thread(
+                    self._manager.SetUnitProperties, unit_name, True, [(k, v)],
+                )
+        except Exception as exc:
+            raise UnitOperationError(unit_name, "set-property", str(exc)) from exc
+
+    async def get_resource_usage(self, unit_name: str) -> ResourceUsage:
+        try:
+            proxy = await asyncio.to_thread(self._get_unit_proxy, unit_name)
+            props = await asyncio.to_thread(lambda: {
+                "CPUUsageNSec": proxy.CPUUsageNSec,
+                "MemoryCurrent": proxy.MemoryCurrent,
+                "TasksCurrent": proxy.TasksCurrent,
+            })
+            native = get_native(props)
+
+            def _val(key: str) -> int | None:
+                v = native.get(key)
+                if v is None or v == 0xFFFFFFFFFFFFFFFF:  # uint64 max = not set
+                    return None
+                val = int(v)
+                return val if val > 0 else None
+
+            return ResourceUsage(
+                cpu_usage_nsec=_val("CPUUsageNSec"),
+                memory_current=_val("MemoryCurrent"),
+                tasks_current=_val("TasksCurrent"),
+            )
+        except Exception:
+            return ResourceUsage()
+
+    async def list_timers(self) -> list[TimerInfo]:
+        # Use subprocess fallback — no clean D-Bus API for list-timers
+        scope_flag = f"--{self._scope.value}"
+        cmd = ["systemctl", scope_flag, "list-timers", "--output=json", "--no-pager", "--all"]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_bytes, _ = await proc.communicate()
+        stdout = stdout_bytes.decode("utf-8", errors="replace")
+        import json
+        data = json.loads(stdout) if stdout.strip() else []
+        return [
+            TimerInfo(
+                name=e.get("unit", ""), time_left=e.get("left"),
+                unit=e.get("unit", ""), activates=e.get("activates"),
+            )
+            for e in data
+        ]
+
+    async def list_sockets(self) -> list[SocketInfo]:
+        scope_flag = f"--{self._scope.value}"
+        cmd = ["systemctl", scope_flag, "list-sockets", "--output=json", "--no-pager", "--all"]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_bytes, _ = await proc.communicate()
+        stdout = stdout_bytes.decode("utf-8", errors="replace")
+        import json
+        data = json.loads(stdout) if stdout.strip() else []
+        return [
+            SocketInfo(
+                name=e.get("unit", ""), listen=e.get("listen", ""),
+                type=e.get("type", ""), unit=e.get("activates", e.get("unit", "")),
+            )
+            for e in data
+        ]
+
+    async def list_dependencies(self, unit_name: str) -> list[str]:
+        scope_flag = f"--{self._scope.value}"
+        cmd = ["systemctl", scope_flag, "list-dependencies", unit_name, "--plain", "--no-pager"]
+        proc = await asyncio.create_subprocess_exec(
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+        )
+        stdout_bytes, _ = await proc.communicate()
+        stdout = stdout_bytes.decode("utf-8", errors="replace")
+        return [
+            line.strip() for line in stdout.splitlines()
+            if line.strip() and line.strip() != unit_name
+        ]
+
+    async def kill_unit(self, unit_name: str, signal: str = "SIGTERM") -> None:
+        try:
+            await asyncio.to_thread(self._manager.KillUnit, unit_name, "all", signal)
+        except Exception as exc:
+            raise UnitOperationError(unit_name, "kill", str(exc)) from exc
 
     # ── Transient units (systemd-run via subprocess) ──────────
 

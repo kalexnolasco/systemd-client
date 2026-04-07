@@ -8,6 +8,9 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from systemd_client.models import (
         EnableResult,
+        ResourceUsage,
+        SocketInfo,
+        TimerInfo,
         TransientResult,
         UnitFile,
         UnitFileInfo,
@@ -120,6 +123,30 @@ class AbstractBackend(ABC):
 
     @abstractmethod
     async def is_failed(self, unit_name: str) -> bool:
+        ...
+
+    @abstractmethod
+    async def set_property(self, unit_name: str, properties: dict[str, str]) -> None:
+        ...
+
+    @abstractmethod
+    async def get_resource_usage(self, unit_name: str) -> ResourceUsage:
+        ...
+
+    @abstractmethod
+    async def list_timers(self) -> list[TimerInfo]:
+        ...
+
+    @abstractmethod
+    async def list_sockets(self) -> list[SocketInfo]:
+        ...
+
+    @abstractmethod
+    async def list_dependencies(self, unit_name: str) -> list[str]:
+        ...
+
+    @abstractmethod
+    async def kill_unit(self, unit_name: str, signal: str = "SIGTERM") -> None:
         ...
 
     @abstractmethod
