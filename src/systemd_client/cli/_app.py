@@ -77,6 +77,13 @@ def _build_parser() -> argparse.ArgumentParser:
     p_reset = sub.add_parser("reset-failed", help="Reset failed state")
     p_reset.add_argument("unit", nargs="?", help="Unit name (all if omitted)")
 
+    # analyze
+    sub.add_parser("analyze-blame", help="Show slowest units at boot")
+    p_asec = sub.add_parser("analyze-security", help="Analyze unit security hardening")
+    p_asec.add_argument("unit", help="Unit name")
+    p_averify = sub.add_parser("analyze-verify", help="Verify unit file syntax")
+    p_averify.add_argument("unit", help="Unit name")
+
     # list-timers / list-sockets
     sub.add_parser("list-timers", help="List active timers")
     sub.add_parser("list-sockets", help="List active sockets")
@@ -251,6 +258,38 @@ def _dispatch(client: SystemdClient, args: argparse.Namespace) -> int:
             print(f"Reset failed state for {args.unit}")
         else:
             print("Reset all failed states")
+
+    elif cmd == "analyze-blame":
+        entries = client.analyze_blame()
+        if args.use_json:
+            from dataclasses import asdict
+            print(json.dumps([asdict(e) for e in entries], indent=2))
+        else:
+            for e in entries:
+                secs = e.time_us / 1_000_000
+                print(f"  {secs:>8.3f}s  {e.unit}")
+
+    elif cmd == "analyze-security":
+        analysis = client.analyze_security(args.unit)
+        if args.use_json:
+            from dataclasses import asdict
+            print(json.dumps(asdict(analysis), indent=2))
+        else:
+            score = analysis.exposure
+            color = "\033[32m" if score < 3 else "\033[33m" if score < 7 else "\033[31m"
+            reset = "\033[0m" if not args.no_color else ""
+            color = color if not args.no_color else ""
+            print(f"  {args.unit}: {color}{score:.1f}/10.0 exposure{reset}")
+            for issue in analysis.issues[:20]:
+                print(f"    [{issue.severity}] {issue.description}: {issue.value}")
+
+    elif cmd == "analyze-verify":
+        messages = client.analyze_verify(args.unit)
+        if not messages:
+            print(f"{args.unit}: OK")
+        else:
+            for msg in messages:
+                print(f"  {msg}")
 
     elif cmd == "list-timers":
         timers = client.list_timers()

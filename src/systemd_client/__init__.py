@@ -29,9 +29,12 @@ from systemd_client.exceptions import (
 )
 from systemd_client.journal import AsyncJournalReader, JournalQuery, JournalReader
 from systemd_client.models import (
+    BlameEntry,
     EnableResult,
     JournalEntry,
     ResourceUsage,
+    SecurityAnalysis,
+    SecurityIssue,
     SocketInfo,
     TimerInfo,
     TransientResult,
@@ -48,6 +51,7 @@ __all__ = [
     "BackendError",
     "BackendNotAvailableError",
     "BackendType",
+    "BlameEntry",
     "EnableResult",
     "JournalEntry",
     "JournalError",
@@ -59,6 +63,8 @@ __all__ = [
     "PathBuilder",
     "ResourceUsage",
     "RestartPolicy",
+    "SecurityAnalysis",
+    "SecurityIssue",
     "ServiceBuilder",
     "ServiceType",
     "SocketBuilder",

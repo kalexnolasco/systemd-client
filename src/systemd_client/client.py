@@ -15,9 +15,11 @@ if TYPE_CHECKING:
     from types import TracebackType
 
     from systemd_client.models import (
+        BlameEntry,
         EnableResult,
         JournalEntry,
         ResourceUsage,
+        SecurityAnalysis,
         SocketInfo,
         TimerInfo,
         TransientResult,
@@ -222,6 +224,26 @@ class AsyncSystemdClient:
     async def edit(self, unit_name: str, overrides: dict[str, dict[str, str]]) -> str:
         """Create a drop-in override for a unit. Returns the override path."""
         return await self._backend.edit_unit_file(unit_name, overrides)
+
+    async def analyze_blame(self) -> list[BlameEntry]:
+        """List units ordered by initialization time (slowest first)."""
+        from systemd_client._analyze import analyze_blame
+        return await analyze_blame(self._scope)
+
+    async def analyze_critical_chain(self, unit: str | None = None) -> str:
+        """Show the critical chain of unit startup."""
+        from systemd_client._analyze import analyze_critical_chain
+        return await analyze_critical_chain(self._scope, unit)
+
+    async def analyze_security(self, unit: str) -> SecurityAnalysis:
+        """Analyze security hardening of a unit (exposure score 0-10)."""
+        from systemd_client._analyze import analyze_security
+        return await analyze_security(self._scope, unit)
+
+    async def analyze_verify(self, unit: str) -> list[str]:
+        """Verify unit file syntax and return diagnostic messages."""
+        from systemd_client._analyze import analyze_verify
+        return await analyze_verify(self._scope, unit)
 
     async def journal(
         self,
@@ -438,6 +460,22 @@ class SystemdClient:
     def edit(self, unit_name: str, overrides: dict[str, dict[str, str]]) -> str:
         """Create a drop-in override for a unit. Returns the override path."""
         return run_sync(self._async_client.edit(unit_name, overrides))
+
+    def analyze_blame(self) -> list[BlameEntry]:
+        """List units ordered by initialization time (slowest first)."""
+        return run_sync(self._async_client.analyze_blame())
+
+    def analyze_critical_chain(self, unit: str | None = None) -> str:
+        """Show the critical chain of unit startup."""
+        return run_sync(self._async_client.analyze_critical_chain(unit))
+
+    def analyze_security(self, unit: str) -> SecurityAnalysis:
+        """Analyze security hardening of a unit (exposure score 0-10)."""
+        return run_sync(self._async_client.analyze_security(unit))
+
+    def analyze_verify(self, unit: str) -> list[str]:
+        """Verify unit file syntax and return diagnostic messages."""
+        return run_sync(self._async_client.analyze_verify(unit))
 
     def journal(
         self,

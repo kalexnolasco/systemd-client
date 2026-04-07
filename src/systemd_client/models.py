@@ -90,6 +90,33 @@ class UnitFile:
 
 
 @dataclass(frozen=True, slots=True)
+class BlameEntry:
+    """A single entry from systemd-analyze blame."""
+
+    time_us: int
+    unit: str
+
+
+@dataclass(frozen=True, slots=True)
+class SecurityIssue:
+    """A single security issue from systemd-analyze security."""
+
+    id: str
+    description: str
+    severity: str
+    value: str
+
+
+@dataclass(frozen=True, slots=True)
+class SecurityAnalysis:
+    """Result of systemd-analyze security for a unit."""
+
+    unit: str
+    exposure: float
+    issues: list[SecurityIssue] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
 class ResourceUsage:
     """Resource usage information for a unit."""
 
