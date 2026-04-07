@@ -352,10 +352,11 @@ def _build_timers_tab(state: dict[str, Any]) -> Table:
     tbl.set_column_spacing(1)
 
     for t in state.get("timers", []):
+        time_left = str(t.time_left) if t.time_left is not None else "-"
         tbl.append_row_spans([
-            [(t.name, Style(fg=THEME["text"]))],
-            [(t.time_left or "-", Style(fg=THEME["active"]))],
-            [(t.activates or "-", Style(fg=THEME["muted"]))],
+            [(str(t.name), Style(fg=THEME["text"]))],
+            [(time_left, Style(fg=THEME["active"]))],
+            [(str(t.activates or "-"), Style(fg=THEME["muted"]))],
         ])
 
     count = len(state.get("timers", []))
