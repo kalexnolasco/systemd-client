@@ -147,16 +147,23 @@ def _build_unit_table(state: dict[str, Any]) -> Table:
     ])
     tbl.set_widths_percentages([30, 10, 10, 10, 40])
     tbl.set_row_highlight_style(
-        Style(bg=THEME["selected_bg"], fg=THEME["selected_fg"]).bold(),
+        Style(bg=THEME["selected_bg"], fg=THEME["selected_fg"]).bold().reversed(),
     )
-    tbl.set_highlight_symbol(" > ")
+    tbl.set_highlight_symbol(" >> ")
     tbl.set_column_spacing(1)
 
     filter_text = state.get("filter", "").lower()
+    type_filter = state.get("type_filter", "")
     filtered = []
     for u in state.get("units", []):
         if filter_text and filter_text not in u.name.lower():
             continue
+        if type_filter:
+            if type_filter == "failed":
+                if u.active_state.value != "failed":
+                    continue
+            elif not u.name.endswith(f".{type_filter}"):
+                continue
         filtered.append(u)
         color = _state_color(u.active_state.value)
         tbl.append_row_spans([
@@ -173,10 +180,13 @@ def _build_unit_table(state: dict[str, Any]) -> Table:
         sel = max(0, len(filtered) - 1)
         state["selected"] = sel
     tbl.set_selected(sel)
-    title = f" Units ({len(filtered)}) "
+    parts = []
+    if type_filter:
+        parts.append(type_filter)
     if filter_text:
-        title = f" Units [{filter_text}] ({len(filtered)}) "
-    tbl.set_block_title(title, True)
+        parts.append(f"/{filter_text}")
+    filter_label = f" [{' '.join(parts)}]" if parts else ""
+    tbl.set_block_title(f" Units{filter_label} ({len(filtered)}) ", True)
     return tbl
 
 
@@ -283,13 +293,13 @@ def _build_stats_gauge(state: dict[str, Any]) -> Gauge:
     return g
 
 
-def _build_help_footer() -> Paragraph:
+def _build_help_footer(state: dict[str, Any] | None = None) -> Paragraph:
     """Build the bottom help bar."""
     p = Paragraph.new_empty()
     keys = [
-        ("q/Esc", "Quit"), ("↑↓", "Navigate"), ("PgUp/Dn", "Page"),
-        ("Tab", "Scope"), ("/", "Filter"), ("1-4", "Tabs"),
-        ("s", "Start"), ("S", "Stop"), ("r", "Restart"), ("j", "Journal"),
+        ("↑↓", "Nav"), ("Tab", "Scope"), ("/", "Search"), ("1-4", "Tabs"),
+        ("F1", "All"), ("F2", "Svc"), ("F3", "Timer"), ("F4", "Socket"), ("F5", "Failed"),
+        ("s", "Start"), ("S", "Stop"), ("r", "Restart"), ("j", "Log"), ("q", "Quit"),
     ]
     for key, desc in keys:
         p.append_span(f" {key} ", Style(fg=THEME["key_fg"], bg=THEME["key_bg"]).bold())
@@ -311,6 +321,13 @@ def _build_help_screen() -> Paragraph:
             ("/ + text", "Filter units by name"),
             ("Esc", "Clear filter / Exit"),
             ("q", "Quit"),
+        ]),
+        ("Type Filters", [
+            ("F1", "Show all units"),
+            ("F2", "Show only .service units"),
+            ("F3", "Show only .timer units"),
+            ("F4", "Show only .socket units"),
+            ("F5", "Show only failed units"),
         ]),
         ("Unit Operations", [
             ("s", "Start selected unit"),
@@ -387,7 +404,7 @@ def render(term: Terminal, state: dict[str, Any]) -> None:
     # Header + Tabs + Footer (always shown)
     cmds.append(DrawCmd.paragraph(_build_header(state), header_rect))
     cmds.append(DrawCmd.tabs(_build_tabs(state), tabs_rect))
-    cmds.append(DrawCmd.paragraph(_build_help_footer(), footer_rect))
+    cmds.append(DrawCmd.paragraph(_build_help_footer(state), footer_rect))
 
     tab = state.get("tab", 0)
 
@@ -454,9 +471,10 @@ def on_event(term: Terminal, evt: dict[str, Any], state: dict[str, Any]) -> bool
     if char == "q" or (code == KeyCode.Esc and not state.get("filter")):
         return False
 
-    # Clear filter on Esc
+    # Clear filters on Esc
     if code == KeyCode.Esc:
         state["filter"] = ""
+        state["type_filter"] = ""
         return True
 
     # Tab switching (1-4 keys)
@@ -467,6 +485,21 @@ def on_event(term: Terminal, evt: dict[str, Any], state: dict[str, Any]) -> bool
             import contextlib
             with contextlib.suppress(Exception):
                 state["timers"] = client.list_timers()
+        return True
+
+    # Type filters (F1-F5)
+    type_filter_map = {
+        KeyCode.F1: "",
+        KeyCode.F2: "service",
+        KeyCode.F3: "timer",
+        KeyCode.F4: "socket",
+        KeyCode.F5: "failed",
+    }
+    if code in type_filter_map:
+        state["type_filter"] = type_filter_map[code]
+        state["selected"] = 0
+        label = type_filter_map[code] or "all"
+        state["message"] = f"Filter: {label}"
         return True
 
     # Tab key = scope toggle
@@ -580,6 +613,7 @@ def run_tui(
         "journal_unit": "",
         "timers": [],
         "filter": "",
+        "type_filter": "",
         "filtering": False,
         "tab": 0,
         "needs_reload": False,
