@@ -691,11 +691,19 @@ def run_tui(
         "_filtered": units,
     }
 
+    # Enable mouse tracking (ANSI escape sequences)
+    _MOUSE_ENABLE = "\033[?1000h\033[?1002h\033[?1006h"
+    _MOUSE_DISABLE = "\033[?1000l\033[?1002l\033[?1006l"
+
     try:
+        sys.stdout.write(_MOUSE_ENABLE)
+        sys.stdout.flush()
         App(render=render, on_event=on_event, on_tick=on_tick, tick_ms=500).run(state)
     except KeyboardInterrupt:
         pass
     finally:
+        sys.stdout.write(_MOUSE_DISABLE)
+        sys.stdout.flush()
         client.close()
 
     return 0
