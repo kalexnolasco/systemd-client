@@ -31,6 +31,7 @@ try:
     from ratatui_py import (
         App,
         Color,
+        DrawCmd,
         Gauge,
         KeyCode,
         Paragraph,
@@ -40,7 +41,6 @@ try:
         Tabs,
         Terminal,
     )
-    from ratatui_py.wrappers import TableState
 except ImportError as _exc:
     raise ImportError(
         "ratatui-py is required for the TUI. "
@@ -153,7 +153,9 @@ def _build_unit_table(state: dict[str, Any]) -> Table:
 
     filter_text = state.get("filter", "").lower()
     type_filter = state.get("type_filter", "")
+    sel = state.get("selected", 0)
     filtered = []
+    row_idx = 0
     for u in state.get("units", []):
         if filter_text and filter_text not in u.name.lower():
             continue
@@ -165,13 +167,22 @@ def _build_unit_table(state: dict[str, Any]) -> Table:
                 continue
         filtered.append(u)
         color = _state_color(u.active_state.value)
+        is_selected = row_idx == sel
+        if is_selected:
+            # Highlight: cyan background, black text for selected row
+            row_style = Style(fg=Color.Black, bg=THEME["accent"]).bold()
+            prefix = ">> "
+        else:
+            row_style = Style(fg=THEME["text"])
+            prefix = "   "
         tbl.append_row_spans([
-            [(u.name, Style(fg=THEME["text"]))],
-            [(u.load_state.value, Style(fg=THEME["muted"]))],
-            [(u.active_state.value, Style(fg=color).bold())],
-            [(u.sub_state.value, Style(fg=color))],
-            [(u.description[:50], Style(fg=THEME["muted"]))],
+            [(prefix + u.name, row_style if is_selected else Style(fg=THEME["text"]))],
+            [(u.load_state.value, row_style if is_selected else Style(fg=THEME["muted"]))],
+            [(u.active_state.value, row_style if is_selected else Style(fg=color).bold())],
+            [(u.sub_state.value, row_style if is_selected else Style(fg=color))],
+            [(u.description[:50], row_style if is_selected else Style(fg=THEME["muted"]))],
         ])
+        row_idx += 1
 
     state["_filtered"] = filtered
     sel = state.get("selected", 0)
@@ -388,64 +399,54 @@ def _build_timers_tab(state: dict[str, Any]) -> Table:
 
 
 def render(term: Terminal, state: dict[str, Any]) -> None:
-    """Main render function.
-
-    Uses individual draw calls instead of draw_frame so we can use
-    draw_table_state for proper row highlight/selection.
-    """
+    """Main render function."""
     w, h = term.size()
 
-    # Layout: header(1) + tabs(1) + body + footer(1)
     header_h = 1
     tabs_h = 1
     footer_h = 1
     body_y = header_h + tabs_h
     body_h = h - header_h - tabs_h - footer_h
 
-    # Draw chrome (header, tabs, footer)
-    term.draw_paragraph(_build_header(state), Rect(0, 0, w, header_h))
-    term.draw_tabs(_build_tabs(state), Rect(0, header_h, w, tabs_h))
-    term.draw_paragraph(_build_help_footer(state), Rect(0, h - footer_h, w, footer_h))
+    cmds: list[DrawCmd] = [
+        DrawCmd.paragraph(_build_header(state), Rect(0, 0, w, header_h)),
+        DrawCmd.tabs(_build_tabs(state), Rect(0, header_h, w, tabs_h)),
+        DrawCmd.paragraph(_build_help_footer(state), Rect(0, h - footer_h, w, footer_h)),
+    ]
 
     tab = state.get("tab", 0)
 
     if tab == 0:  # Dashboard
         left_w = int(w * 0.6)
         right_w = w - left_w
-        left_rect = Rect(0, body_y, left_w, body_h)
 
-        # Draw table with TableState for proper highlight
-        tbl = _build_unit_table(state)
-        ts = TableState()
-        ts.set_selected(state.get("selected", 0))
-        term.draw_table_state(tbl, ts, left_rect)
-
-        # Right panels
         detail_h = int(body_h * 0.4)
         actions_h = int(body_h * 0.4)
         gauge_h = max(3, body_h - detail_h - actions_h)
-        actions_h = body_h - detail_h - gauge_h  # recalc
+        actions_h = body_h - detail_h - gauge_h
 
-        term.draw_paragraph(
-            _build_detail(state), Rect(left_w, body_y, right_w, detail_h),
-        )
-        term.draw_paragraph(
-            _build_actions(state), Rect(left_w, body_y + detail_h, right_w, actions_h),
-        )
-        term.draw_gauge(
-            _build_stats_gauge(state),
-            Rect(left_w, body_y + detail_h + actions_h, right_w, gauge_h),
-        )
+        cmds.extend([
+            DrawCmd.table(_build_unit_table(state), Rect(0, body_y, left_w, body_h)),
+            DrawCmd.paragraph(_build_detail(state), Rect(left_w, body_y, right_w, detail_h)),
+            DrawCmd.paragraph(
+                _build_actions(state), Rect(left_w, body_y + detail_h, right_w, actions_h),
+            ),
+            DrawCmd.gauge(
+                _build_stats_gauge(state),
+                Rect(left_w, body_y + detail_h + actions_h, right_w, gauge_h),
+            ),
+        ])
 
     elif tab == 1:  # Journal
-        term.draw_paragraph(_build_journal(state), Rect(0, body_y, w, body_h))
+        cmds.append(DrawCmd.paragraph(_build_journal(state), Rect(0, body_y, w, body_h)))
 
     elif tab == 2:  # Timers
-        tbl = _build_timers_tab(state)
-        term.draw_table(tbl, Rect(0, body_y, w, body_h))
+        cmds.append(DrawCmd.table(_build_timers_tab(state), Rect(0, body_y, w, body_h)))
 
     elif tab == 3:  # Help
-        term.draw_paragraph(_build_help_screen(), Rect(0, body_y, w, body_h))
+        cmds.append(DrawCmd.paragraph(_build_help_screen(), Rect(0, body_y, w, body_h)))
+
+    term.draw_frame(cmds)
 
 
 # ── Event Handling ──────────────────────────────────────────────
