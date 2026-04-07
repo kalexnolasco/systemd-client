@@ -5,6 +5,28 @@ from __future__ import annotations
 import sys
 from typing import Any
 
+
+def _fix_ratatui_so() -> None:
+    """Work around ratatui-py packaging bug: .so shipped as .so.bak."""
+    try:
+        import importlib.util
+        import shutil
+        from pathlib import Path
+
+        spec = importlib.util.find_spec("ratatui_py")
+        if spec is None or spec.origin is None:
+            return
+        bundled = Path(spec.origin).parent / "_bundled"
+        so_bak = bundled / "libratatui_ffi.so.bak"
+        so_real = bundled / "libratatui_ffi.so"
+        if so_bak.exists() and not so_real.exists():
+            shutil.copy2(so_bak, so_real)
+    except Exception:
+        pass
+
+
+_fix_ratatui_so()
+
 try:
     from ratatui_py import (
         App,
@@ -22,8 +44,8 @@ except ImportError as _exc:
         "Install with: pip install systemd-client[tui]"
     ) from _exc
 
-from systemd_client.client import SystemdClient
-from systemd_client.enums import BackendType, SystemdScope
+from systemd_client.client import SystemdClient  # noqa: E402
+from systemd_client.enums import BackendType, SystemdScope  # noqa: E402
 
 
 def _state_color(state: str) -> Color:
