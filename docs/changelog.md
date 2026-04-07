@@ -1,5 +1,35 @@
 # Changelog
 
+## v0.9.2
+
+Hotfix release with TUI improvements and bug fixes.
+
+### TUI Improvements
+- **Mouse support**: click to select units, scroll wheel to navigate, click on tabs
+- **Professional layout**: 3 tabs (Dashboard, Timers, Help), actions panel, health gauge
+- **Type filters**: F1=All, F2=Services, F3=Timers, F4=Sockets, F5=Failed
+- **Search**: press `/` to filter units by name
+- **Journal panel**: integrated at bottom of dashboard with auto-refresh every 2s
+- **Full message display**: journal entries show complete text with word wrap
+
+### Bug Fixes
+- **Unit name decoding**: systemd `\xNN` hex escaping now decoded to readable names (e.g., `app-git\x2dannex` → `app-git-annex`)
+- **loginctl parsing**: use `--no-legend` text output instead of `--output=json` (not supported on all systemd versions)
+- **Mouse tracking**: enable ANSI mouse escape sequences on TUI start
+- **Gauge colors**: fixed white background on health gauge
+- **Table highlight**: manual row highlighting with cyan background (DrawCmd.table limitation)
+
+### Documentation
+- 7 new guide pages (builders, transient, resources, analyze, notify, sessions, TUI)
+- 3 new API reference pages (builders, analyze, notify)
+- 7 new example scripts (16-22)
+- CONTRIBUTING.md with dev setup and architecture
+- Status bumped to Beta
+
+## v0.9.1
+
+Complete documentation overhaul with 13 guide pages, 9 API references, 22 examples, CONTRIBUTING.md, Beta status.
+
 ## v0.9.0
 
 **Interactive TUI** powered by [Ratatui](https://ratatui.rs/) (Rust rendering engine).

@@ -5,6 +5,7 @@
 [![License](https://img.shields.io/pypi/l/systemd-client?style=flat-square)](https://github.com/kalexnolasco/systemd-client/blob/main/LICENSE)
 [![Tests](https://img.shields.io/github/actions/workflow/status/kalexnolasco/systemd-client/tests.yml?style=flat-square&label=tests)](https://github.com/kalexnolasco/systemd-client/actions)
 [![286 tests](https://img.shields.io/badge/tests-286%20passed-brightgreen?style=flat-square)](https://github.com/kalexnolasco/systemd-client/actions)
+[![Beta](https://img.shields.io/badge/status-beta-blue?style=flat-square)](https://pypi.org/project/systemd-client/)
 [![Docs](https://img.shields.io/badge/docs-kalexnolasco.github.io-blue?style=flat-square)](https://kalexnolasco.github.io/systemd-client/)
 
 **The definitive Python library for systemd.** Manage services, create units, read journals, analyze security, control resources, and monitor everything — from Python or the terminal.
@@ -259,10 +260,12 @@ systemd-client tui
 
 **Features:**
 - Real-time unit list with color-coded states (green=active, red=failed)
-- Keyboard-driven: `s`=start, `S`=stop, `r`=restart, `e`=enable, `d`=disable
-- Journal viewer per unit with `j`
-- Scope toggle with `Tab`
-- Auto-refresh every 2 seconds
+- **Mouse support**: click to select, scroll wheel, tab clicks
+- Keyboard: `s`=start, `S`=stop, `r`=restart, `e`=enable, `d`=disable, `j`=journal
+- Type filters: `F1`=All, `F2`=Services, `F3`=Timers, `F4`=Sockets, `F5`=Failed
+- Search: `/` to filter by name
+- Journal panel at bottom with auto-refresh
+- Scope toggle with `Tab`, 3 tabs: Dashboard, Timers, Help
 - Powered by [Ratatui](https://ratatui.rs/) (Rust rendering engine, 30-60 FPS)
 
 Requires: `pip install systemd-client[tui]`

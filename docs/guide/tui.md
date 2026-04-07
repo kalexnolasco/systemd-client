@@ -216,6 +216,19 @@ The TUI uses consistent color coding throughout:
 
 The currently selected row is highlighted with a `>>` prefix and inverted colors (cyan background, black text).
 
+## Mouse Support
+
+The TUI supports full mouse interaction:
+
+| Action | Effect |
+|--------|--------|
+| **Left click** on unit table | Select that unit |
+| **Scroll wheel** in table | Navigate up/down (3 rows per scroll) |
+| **Left click** on tab bar | Switch to that tab |
+
+!!! info
+    Mouse tracking is enabled automatically when the TUI starts and disabled on exit. Works in most modern terminal emulators (GNOME Terminal, Konsole, Alacritty, kitty, iTerm2, etc.).
+
 ## Auto-Refresh
 
 The TUI refreshes automatically:
